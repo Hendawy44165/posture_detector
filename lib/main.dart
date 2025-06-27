@@ -248,7 +248,7 @@ class _PostureMonitorHomeState extends State<PostureMonitorHome>
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: _getStatusColor().withOpacity(0.1),
+                color: _getStatusColor().withValues(alpha: 0.1),
                 border: Border.all(color: _getStatusColor(), width: 2),
                 borderRadius: BorderRadius.circular(12),
               ),
