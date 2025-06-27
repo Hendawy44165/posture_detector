@@ -85,7 +85,7 @@ class PostureDetector:
             if chin_y > shoulder_y:
                 return True
             return False
-        raise RuntimeError("Could not detect chin or shoulder position for posture analysis.")
+        return None
 
     def _get_chin_position(self, face_landmarks, image_shape):
         """

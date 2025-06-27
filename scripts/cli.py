@@ -1,26 +1,53 @@
 """
-cli.py
-------
-Command-line interface for CameraMonitor that streams posture detection results
-over stdio protocol with robust error handling and buffering management.
+Posture Detection CLI
+--------------------
+A production-ready interface for streaming posture detection results as JSON.
 
-This CLI provides:
-- JSON-formatted output for structured data exchange
-- Configurable monitoring parameters via command-line arguments
-- Graceful shutdown handling
-- Proper stdout flushing to prevent buffering issues
-- Comprehensive error reporting to stderr
-- Production-ready logging and monitoring
+This CLI acts as a server that continuously monitors posture through a camera
+and streams the results as JSON lines over stdout. It's designed to be used
+as a long-running process that can be managed by parent processes (e.g., Flutter apps).
+
+JSON Output Format:
+    Posture Results:
+        {
+            "timestamp": float,      # Unix timestamp
+            "type": "posture",       # Message type
+            "code": 0,               # Success = 0
+            "is_leaning": bool,      # True if leaning detected
+            "posture": str          # "leaning" or "upright"
+        }
+
+    Status Messages:
+        {
+            "timestamp": float,      # Unix timestamp
+            "type": "status",        # Message type
+            "code": int,             # Status code (0 = OK)
+            "message": str          # Status description
+        }
+
+    Error Messages:
+        {
+            "timestamp": float,      # Unix timestamp
+            "type": "error",         # Message type
+            "code": int,             # Error code (see below)
+            "message": str          # Error description
+        }
+
+Error Codes:
+    1: General error
+    2: Camera subscription error
+    3: Posture detection error
+    10: Camera hardware/access error
+    99: Unexpected system error
 
 Usage:
-    python cli.py [options]
+    python cli.py [--interval SECONDS] [--camera INDEX]
+                 [--sensitivity FLOAT] [--verbose]
 
-Examples:
-    python cli.py --interval 2.0 --sensitivity 0.4
-    python cli.py --camera 1 --format json --verbose
+Example:
+    python cli.py --interval 2.0 --sensitivity 0.4 --camera 1 --verbose
 """
 
-import os
 import sys
 import json
 import time
@@ -32,128 +59,129 @@ from contextlib import contextmanager
 
 from camera_monitor import CameraMonitor
 
-# Check and activate venv, install requirements if needed
-venv_dir = os.path.join(os.path.dirname(__file__), "venv")
-requirements = os.path.join(os.path.dirname(__file__), "requirements.txt")
-if not os.path.exists(venv_dir):
-    import subprocess
-
-    print("Setting up virtual environment...", file=sys.stderr)
-    subprocess.check_call([sys.executable, "venv_setup.py"])
-venv_python = (
-    os.path.join(venv_dir, "bin", "python")
-    if os.name != "nt"
-    else os.path.join(venv_dir, "Scripts", "python.exe")
-)
-if sys.executable != venv_python:
-    os.execv(venv_python, [venv_python] + sys.argv)
-
 
 class PostureStreamCLI:
     """
-    Command-line interface for streaming posture detection results over stdio.
+    A production-ready CLI for streaming posture detection results.
 
-    Handles JSON formatting, error management, and graceful shutdown.
+    This class manages the lifecycle of posture detection monitoring and provides
+    a robust streaming interface via stdout. It handles graceful shutdown,
+    proper error reporting, and maintains a stable streaming connection.
+
+    The CLI follows these principles:
+    1. Reliability: Continues running despite recoverable errors
+    2. Clear Communication: All output is well-structured JSON
+    3. Proper Resource Management: Graceful shutdown and cleanup
+    4. Detailed Logging: Comprehensive logging for debugging
     """
 
-    def __init__(
-        self,
-        interval: float = 1.0,
-        camera_index: int = 0,
-        sensitivity: float = 0.4,
-        output_format: str = "json",
-        verbose: bool = False,
-    ):
+    def __init__(self, interval: float, camera_index: int, sensitivity: float, verbose: bool = False):
         """
-        Initialize the CLI with monitoring parameters.
+        Initialize the streaming CLI with monitoring parameters.
 
         Args:
-            interval: Time between captures in seconds
-            camera_index: Camera device index
+            interval: Seconds between posture checks
+            camera_index: Index of the camera device to use
             sensitivity: Posture detection sensitivity (0.0-1.0)
-            output_format: Output format ('json' or 'text')
-            verbose: Enable verbose logging to stderr
+            verbose: Enable debug logging to stderr
         """
         self.monitor = CameraMonitor(interval=interval, camera_index=camera_index, sensitivity=sensitivity)
-        self.output_format = output_format
         self.verbose = verbose
         self.running = True
         self.subscriber_id = id(self)
-
-        # Configure logging to stderr only
         self._setup_logging()
 
-        # Register signal handlers for graceful shutdown
+        # Set up graceful shutdown handlers
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
 
+    def run(self) -> int:
+        """
+        Main execution loop that streams posture detection results.
+
+        The loop continues until explicitly stopped via signal or error.
+        All results and errors are reported as JSON via stdout.
+
+        Returns:
+            int: Exit code (0 for success, 1 for error)
+        """
+        try:
+            self.logger.info("Starting posture monitoring...")
+            self._output_status("Starting posture monitoring")
+
+            with self._error_context("camera monitor subscription", code=2):
+                stream = self.monitor.subscribe(self.subscriber_id)
+
+            self.logger.info("Camera monitor active")
+            self._output_status("Camera monitor active")
+
+            while self.running:
+                try:
+                    is_leaning = next(stream)
+                    if is_leaning is None:
+                        raise RuntimeError("Posture detection failed, no result returned")
+                    timestamp = time.time()
+                    self._output_posture(is_leaning, timestamp)
+                    self.logger.debug(f"Posture detected: {'leaning' if is_leaning else 'upright'}")
+                except StopIteration:
+                    break
+                except Exception as e:
+                    # Catch all errors from camera_monitor or posture_detector
+                    self._output_error(f"Posture detection error: {e}", code=101)
+                    self.logger.error(f"Posture detection error: {e}")
+                    time.sleep(self.monitor.interval)
+            return 0
+
+        except RuntimeError as e:
+            self._output_error(f"Camera error: {str(e)}", code=10)
+            return 1
+        except Exception as e:
+            self._output_error(f"Unexpected error: {str(e)}", code=99)
+            return 1
+        finally:
+            self._cleanup()
+
+    def _cleanup(self):
+        """Perform cleanup operations before shutdown."""
+        try:
+            self.monitor.unsubscribe(self.subscriber_id)
+            self.logger.info("Unsubscribed from camera monitor")
+            self._output_status("Posture monitoring stopped")
+        except Exception as e:
+            self.logger.error(f"Error during cleanup: {e}")
+
     def _setup_logging(self):
-        """Configure logging to stderr with appropriate level."""
+        """Configure logging to stderr with appropriate verbosity level."""
         level = logging.DEBUG if self.verbose else logging.WARNING
         logging.basicConfig(
-            level=level,
-            format="%(asctime)s - %(levelname)s - %(message)s",
-            stream=sys.stderr,
-            force=True,
+            level=level, format="%(asctime)s - %(levelname)s - %(message)s", stream=sys.stderr, force=True
         )
         self.logger = logging.getLogger(__name__)
 
-    def _signal_handler(self, signum: int):
+    def _signal_handler(self, signum: int, frame=None):
         """Handle shutdown signals gracefully."""
-        self.logger.info(f"Received signal {signum}, initiating shutdown...")
+        self.logger.info(f"Received signal {signum}, shutting down...")
         self.running = False
 
     @contextmanager
-    def _error_context(self, operation: str):
+    def _error_context(self, operation: str, code: int = 1):
         """
         Context manager for consistent error handling and reporting.
+        Catches and reports errors without interrupting the stream.
 
         Args:
             operation: Description of the operation being performed
+            code: Error code to use in JSON output
         """
         try:
             yield
         except KeyboardInterrupt:
-            self.logger.info("Received keyboard interrupt")
+            self.logger.info("Keyboard interrupt received")
             self.running = False
         except Exception as e:
             error_msg = f"Error during {operation}: {str(e)}"
             self.logger.error(error_msg)
-            self._output_error(error_msg)
-            raise
-
-    def _output_error(self, message: str):
-        """
-        Output error message in the appropriate format.
-
-        Args:
-            message: Error message to output
-        """
-        if self.output_format == "json":
-            error_data = {"timestamp": time.time(), "type": "error", "message": message}
-            self._write_json(error_data)
-        else:
-            self._write_text(f"ERROR: {message}")
-
-    def _output_posture(self, is_leaning: bool, timestamp: float):
-        """
-        Output posture data in the specified format.
-
-        Args:
-            is_leaning: Whether the person is leaning forward
-            timestamp: Unix timestamp of the measurement
-        """
-        if self.output_format == "json":
-            data = {
-                "timestamp": timestamp,
-                "type": "posture",
-                "is_leaning": is_leaning,
-                "posture": "leaning" if is_leaning else "upright",
-            }
-            self._write_json(data)
-        else:
-            posture_str = "leaning" if is_leaning else "upright"
-            self._write_text(f"{timestamp:.3f}: {posture_str}")
+            self._output_error(error_msg, code=code)
 
     def _write_json(self, data: Dict[str, Any]):
         """
@@ -163,122 +191,44 @@ class PostureStreamCLI:
             data: Dictionary to serialize as JSON
         """
         try:
-            json_str = json.dumps(data, separators=(",", ":"))
-            sys.stdout.write(json_str + "\n")
+            sys.stdout.write(json.dumps(data, separators=(",", ":")) + "\n")
             sys.stdout.flush()
         except (IOError, OSError) as e:
             self.logger.error(f"Failed to write JSON output: {e}")
             self.running = False
 
-    def _write_text(self, message: str):
-        """
-        Write text message to stdout with proper flushing.
+    def _output_error(self, message: str, code: int = 1):
+        """Output error message as JSON."""
+        self._write_json({"timestamp": time.time(), "type": "error", "code": code, "message": message})
 
-        Args:
-            message: Text message to output
-        """
-        try:
-            sys.stdout.write(message + "\n")
-            sys.stdout.flush()
-        except (IOError, OSError) as e:
-            self.logger.error(f"Failed to write text output: {e}")
-            self.running = False
+    def _output_status(self, message: str, code: int = 0):
+        """Output status update as JSON."""
+        self._write_json({"timestamp": time.time(), "type": "status", "code": code, "message": message})
 
-    def _output_status(self, message: str):
-        """
-        Output status message in appropriate format.
-
-        Args:
-            message: Status message
-        """
-        if self.output_format == "json":
-            status_data = {"timestamp": time.time(), "type": "status", "message": message}
-            self._write_json(status_data)
-        else:
-            self._write_text(f"STATUS: {message}")
-
-    def run(self):
-        """
-        Main execution loop that streams posture detection results.
-
-        Returns:
-            int: Exit code (0 for success, 1 for error)
-        """
-        try:
-            self.logger.info("Starting posture monitoring...")
-            self._output_status("Starting posture monitoring")
-
-            with self._error_context("camera monitor subscription"):
-                stream = self.monitor.subscribe(self.subscriber_id)
-
-            self.logger.info("Successfully subscribed to camera monitor")
-            self._output_status("Camera monitor active")
-
-            # Main monitoring loop
-            for is_leaning in stream:
-                if not self.running:
-                    break
-
-                timestamp = time.time()
-
-                with self._error_context("posture output"):
-                    self._output_posture(is_leaning, timestamp)
-
-                self.logger.debug(f"Posture detected: {'leaning' if is_leaning else 'upright'}")
-
-            return 0
-
-        except RuntimeError as e:
-            error_msg = f"Camera error: {str(e)}"
-            self.logger.error(error_msg)
-            self._output_error(error_msg)
-            return 1
-
-        except Exception as e:
-            error_msg = f"Unexpected error: {str(e)}"
-            self.logger.error(error_msg, exc_info=True)
-            self._output_error(error_msg)
-            return 1
-
-        finally:
-            self._cleanup()
-
-    def _cleanup(self):
-        """Perform cleanup operations."""
-        try:
-            self.monitor.unsubscribe(self.subscriber_id)
-            self.logger.info("Unsubscribed from camera monitor")
-            self._output_status("Posture monitoring stopped")
-        except Exception as e:
-            self.logger.error(f"Error during cleanup: {e}")
+    def _output_posture(self, is_leaning: bool, timestamp: float):
+        """Output posture detection result as JSON."""
+        self._write_json(
+            {
+                "timestamp": timestamp,
+                "type": "posture",
+                "code": 0,
+                "is_leaning": is_leaning,
+                "posture": "leaning" if is_leaning else "upright",
+            }
+        )
 
 
-def create_argument_parser() -> argparse.ArgumentParser:
-    """
-    Create and configure the command-line argument parser.
-
-    Returns:
-        argparse.ArgumentParser: Configured argument parser
-    """
+def parse_args() -> argparse.Namespace:
+    """Parse and validate command-line arguments."""
     parser = argparse.ArgumentParser(
-        description="Stream posture detection results over stdio",
+        description="Stream posture detection results as JSON over stdout.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  %(prog)s                              # Use default settings
   %(prog)s --interval 2.0 --sensitivity 0.6
-  %(prog)s --camera 1 --format text --verbose
-  %(prog)s --help                       # Show this help message
-
-Output Formats:
-  json: Structured JSON output (default)
-  text: Human-readable text output
-
-The program outputs posture data to stdout and logs to stderr.
-Use Ctrl+C or send SIGTERM for graceful shutdown.
+  %(prog)s --camera 1 --verbose
         """,
     )
-
     parser.add_argument(
         "--interval",
         "-i",
@@ -287,11 +237,9 @@ Use Ctrl+C or send SIGTERM for graceful shutdown.
         metavar="SECONDS",
         help="Time between posture checks (default: 10.0 seconds)",
     )
-
     parser.add_argument(
         "--camera", "-c", type=int, default=0, metavar="INDEX", help="Camera device index (default: 0)"
     )
-
     parser.add_argument(
         "--sensitivity",
         "-s",
@@ -300,36 +248,19 @@ Use Ctrl+C or send SIGTERM for graceful shutdown.
         metavar="FLOAT",
         help="Posture detection sensitivity 0.0-1.0 (default: 0.4)",
     )
-
-    parser.add_argument(
-        "--format", "-f", choices=["json", "text"], default="json", help="Output format (default: json)"
-    )
-
     parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose logging to stderr")
 
-    return parser
+    args = parser.parse_args()
 
-
-def validate_arguments(args: argparse.Namespace) -> Optional[str]:
-    """
-    Validate command-line arguments.
-
-    Args:
-        args: Parsed command-line arguments
-
-    Returns:
-        str or None: Error message if validation fails, None if valid
-    """
+    # Validate arguments
     if args.interval <= 0:
-        return "Interval must be positive"
-
+        parser.error("--interval must be positive")
     if args.camera < 0:
-        return "Camera index must be non-negative"
-
+        parser.error("--camera must be non-negative")
     if not (0.0 <= args.sensitivity <= 1.0):
-        return "Sensitivity must be between 0.0 and 1.0"
+        parser.error("--sensitivity must be between 0.0 and 1.0")
 
-    return None
+    return args
 
 
 def main() -> int:
@@ -339,25 +270,13 @@ def main() -> int:
     Returns:
         int: Exit code (0 for success, non-zero for error)
     """
-    parser = create_argument_parser()
-    args = parser.parse_args()
-
-    # Validate arguments
-    validation_error = validate_arguments(args)
-    if validation_error:
-        print(f"Error: {validation_error}", file=sys.stderr)
-        parser.print_help(sys.stderr)
-        return 1
-
-    # Create and run the CLI
+    args = parse_args()
     cli = PostureStreamCLI(
         interval=args.interval,
         camera_index=args.camera,
         sensitivity=args.sensitivity,
-        output_format=args.format,
         verbose=args.verbose,
     )
-
     return cli.run()
 
 

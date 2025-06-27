@@ -103,6 +103,8 @@ class CameraMonitor:
                     raise RuntimeError("Failed to capture image from camera.")
                 is_leaning = self.detector.is_leaning_forward(frame)
                 yield is_leaning
+            except RuntimeError as e:
+                yield None
             finally:
                 cap.release()
             time.sleep(self.interval)
