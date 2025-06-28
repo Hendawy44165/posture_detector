@@ -1,33 +1,23 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:window_manager/window_manager.dart';
 import 'dart:async';
 
 import 'models/posture_models.dart';
 import 'services/background_process_service.dart';
 
-///TODO:
-//! - Clean code architecture
-//! - Implement proper state management
-//! - Improve code readability and maintainability
-//! - Improve UI
-//! - Handle delay in state and notifications
-//! - Implement proper notifications
-//! - Handle if multiple people in front of screen
-
 /// Entry point for the Posture Monitor Flutter application.
-/// Initializes window manager and launches the app.
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await windowManager.ensureInitialized();
 
   const windowOptions = WindowOptions(
-    size: Size(400, 300),
     center: true,
     backgroundColor: Colors.transparent,
     skipTaskbar: false,
-    titleBarStyle: TitleBarStyle.normal,
-    windowButtonVisibility: true,
+    titleBarStyle: TitleBarStyle.hidden,
+    windowButtonVisibility: false,
+    fullScreen: true,
+    minimumSize: Size(600, 400),
   );
 
   windowManager.waitUntilReadyToShow(windowOptions, () async {
@@ -38,7 +28,7 @@ Future<void> main() async {
   runApp(const PostureMonitorApp());
 }
 
-/// The root widget for the Posture Monitor app.
+/// The root application widget with modern dark theme.
 class PostureMonitorApp extends StatelessWidget {
   const PostureMonitorApp({super.key});
 
@@ -46,27 +36,86 @@ class PostureMonitorApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Posture Monitor',
-      theme: ThemeData(primarySwatch: Colors.blue, useMaterial3: true),
-      home: const PostureMonitorHome(),
+      theme: _buildDarkTheme(),
+      home: const PostureMonitorScreen(),
       debugShowCheckedModeBanner: false,
+    );
+  }
+
+  /// Creates a modern dark theme with rounded corners and smooth animations.
+  ThemeData _buildDarkTheme() {
+    return ThemeData(
+      brightness: Brightness.dark,
+      useMaterial3: true,
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: const Color(0xFF6366F1),
+        brightness: Brightness.dark,
+      ),
+      cardTheme: CardThemeData(
+        elevation: 8,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      ),
     );
   }
 }
 
-/// Enum representing the user's posture state.
+/// Enum representing different posture states.
 enum PostureState { upright, leaning, notResolved }
 
-/// The main home screen for posture monitoring.
-class PostureMonitorHome extends StatefulWidget {
-  const PostureMonitorHome({super.key});
+/// Extension to provide UI properties for posture states.
+extension PostureStateExtension on PostureState {
+  Color get color {
+    switch (this) {
+      case PostureState.upright:
+        return const Color(0xFF10B981);
+      case PostureState.leaning:
+        return const Color(0xFFEF4444);
+      case PostureState.notResolved:
+        return const Color(0xFFF59E0B);
+    }
+  }
 
-  @override
-  State<PostureMonitorHome> createState() => _PostureMonitorHomeState();
+  String get label {
+    switch (this) {
+      case PostureState.upright:
+        return 'Perfect Posture';
+      case PostureState.leaning:
+        return 'Poor Posture';
+      case PostureState.notResolved:
+        return 'Detecting...';
+    }
+  }
+
+  IconData get icon {
+    switch (this) {
+      case PostureState.upright:
+        return Icons.check_circle_rounded;
+      case PostureState.leaning:
+        return Icons.warning_rounded;
+      case PostureState.notResolved:
+        return Icons.sync_rounded;
+    }
+  }
 }
 
-class _PostureMonitorHomeState extends State<PostureMonitorHome>
-    with WindowListener {
-  late FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin;
+/// The main posture monitoring screen with modern UI design.
+class PostureMonitorScreen extends StatefulWidget {
+  const PostureMonitorScreen({super.key});
+
+  @override
+  State<PostureMonitorScreen> createState() => _PostureMonitorScreenState();
+}
+
+class _PostureMonitorScreenState extends State<PostureMonitorScreen>
+    with TickerProviderStateMixin {
   PostureMonitorClient? _client;
   PostureState _currentPosture = PostureState.notResolved;
   bool _isMonitoring = false;
@@ -76,64 +125,37 @@ class _PostureMonitorHomeState extends State<PostureMonitorHome>
   StreamSubscription<PostureError>? _errorSubscription;
   StreamSubscription<PostureStatus>? _statusSubscription;
 
+  late AnimationController _pulseController;
+  late Animation<double> _pulseAnimation;
+
   @override
   void initState() {
     super.initState();
-    windowManager.addListener(this);
-    _initializeNotifications();
+    _initializeAnimations();
   }
 
   @override
   void dispose() {
-    windowManager.removeListener(this);
+    _pulseController.dispose();
     _stopMonitoring();
     _client?.dispose();
     super.dispose();
   }
 
-  /// Initializes local notifications for posture alerts and errors.
-  Future<void> _initializeNotifications() async {
-    flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
-
-    const initializationSettings = InitializationSettings(
-      linux: LinuxInitializationSettings(
-        defaultActionName: 'Open notification',
-      ),
+  /// Initialize animations for the status indicator.
+  void _initializeAnimations() {
+    _pulseController = AnimationController(
+      duration: const Duration(seconds: 2),
+      vsync: this,
     );
-
-    await flutterLocalNotificationsPlugin.initialize(
-      initializationSettings,
-      onDidReceiveNotificationResponse: (NotificationResponse response) {
-        // Handle notification tap if needed
-      },
+    _pulseAnimation = Tween<double>(begin: 0.8, end: 1.2).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
+    _pulseController.repeat(reverse: true);
   }
 
-  /// Shows a local notification with the given [title] and [body].
-  Future<void> _showNotification(String title, String body) async {
-    const platformChannelSpecifics = NotificationDetails(
-      android: AndroidNotificationDetails(
-        'posture_monitor',
-        'Posture Monitor',
-        channelDescription: 'Notifications for posture monitoring',
-        importance: Importance.high,
-        priority: Priority.high,
-      ),
-      iOS: DarwinNotificationDetails(),
-      macOS: DarwinNotificationDetails(),
-      linux: LinuxNotificationDetails(),
-    );
-
-    await flutterLocalNotificationsPlugin.show(
-      0,
-      title,
-      body,
-      platformChannelSpecifics,
-    );
-  }
-
-  /// Starts posture monitoring and subscribes to result streams.
-  void _startMonitoring() async {
+  /// Starts posture monitoring with the current configuration.
+  Future<void> _startMonitoring() async {
     try {
       final config = PostureMonitorConfig(
         sensitivity: _sensitivity,
@@ -142,177 +164,274 @@ class _PostureMonitorHomeState extends State<PostureMonitorHome>
       );
       _client = PostureMonitorClient(config: config);
 
-      _postureSubscription = _client!.postureStream.listen((result) {
-        setState(() {
-          _currentPosture = result.isLeaning
-              ? PostureState.leaning
-              : PostureState.upright;
-        });
-        if (result.isLeaning) {
-          _showNotification(
-            'Posture Alert',
-            'You are leaning! Please sit up straight.',
-          );
-        }
-      });
+      _postureSubscription = _client!.postureStream.listen(
+        _handlePostureResult,
+        onError: _handleStreamError,
+      );
 
-      _errorSubscription = _client!.errorStream.listen((error) {
-        setState(() {
-          _currentPosture = PostureState.notResolved;
-        });
-        _showNotification(
-          'Posture Monitor Error',
-          'Could not detect posture: ${error.message}',
-        );
-      });
+      _errorSubscription = _client!.errorStream.listen(
+        _handlePostureError,
+        onError: _handleStreamError,
+      );
 
-      _statusSubscription = _client!.statusStream.listen((status) {
-        // Optionally handle status updates
-        print('Status: ${status.message}');
-      });
+      _statusSubscription = _client!.statusStream.listen(
+        _handleStatusUpdate,
+        onError: _handleStreamError,
+      );
 
       await _client!.start();
-      setState(() {
-        _isMonitoring = true;
-      });
+      setState(() => _isMonitoring = true);
     } catch (e) {
-      setState(() {
-        _currentPosture = PostureState.notResolved;
-      });
-      _showNotification('Failed to Start Monitoring', 'Error: ${e.toString()}');
+      setState(() => _currentPosture = PostureState.notResolved);
+      _showErrorSnackBar('Failed to start monitoring: ${e.toString()}');
     }
   }
 
-  /// Stops posture monitoring and cancels all subscriptions.
-  void _stopMonitoring() async {
+  /// Stops posture monitoring and cleans up resources.
+  Future<void> _stopMonitoring() async {
     await _postureSubscription?.cancel();
     await _errorSubscription?.cancel();
     await _statusSubscription?.cancel();
     await _client?.stop();
+
     setState(() {
       _isMonitoring = false;
       _currentPosture = PostureState.notResolved;
     });
   }
 
-  /// Returns the color representing the current posture state.
-  Color _getStatusColor() {
-    switch (_currentPosture) {
-      case PostureState.upright:
-        return Colors.green;
-      case PostureState.leaning:
-        return Colors.red;
-      case PostureState.notResolved:
-        return Colors.orange;
-    }
+  /// Handles posture detection results.
+  void _handlePostureResult(PostureResult result) {
+    setState(() {
+      _currentPosture = result.isLeaning
+          ? PostureState.leaning
+          : PostureState.upright;
+    });
   }
 
-  /// Returns the text label for the current posture state.
-  String _getStatusText() {
-    switch (_currentPosture) {
-      case PostureState.upright:
-        return 'Upright';
-      case PostureState.leaning:
-        return 'Leaning';
-      case PostureState.notResolved:
-        return 'Not Resolved';
-    }
+  /// Handles posture detection errors.
+  void _handlePostureError(PostureError error) {
+    setState(() => _currentPosture = PostureState.notResolved);
+    _showErrorSnackBar('Detection error: ${error.message}');
   }
 
-  /// Returns the icon for the current posture state.
-  IconData _getStatusIcon() {
-    switch (_currentPosture) {
-      case PostureState.upright:
-        return Icons.check_circle;
-      case PostureState.leaning:
-        return Icons.warning;
-      case PostureState.notResolved:
-        return Icons.help_outline;
-    }
+  /// Handles status updates from the monitoring service.
+  void _handleStatusUpdate(PostureStatus status) {
+    debugPrint('Status: ${status.message}');
+  }
+
+  /// Handles stream errors.
+  void _handleStreamError(dynamic error) {
+    setState(() => _currentPosture = PostureState.notResolved);
+    _showErrorSnackBar('Stream error: ${error.toString()}');
+  }
+
+  /// Shows an error message using a SnackBar.
+  void _showErrorSnackBar(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: const Color(0xFFEF4444),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Posture Monitor'),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        centerTitle: true,
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // Status Display
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: _getStatusColor().withValues(alpha: 0.1),
-                border: Border.all(color: _getStatusColor(), width: 2),
-                borderRadius: BorderRadius.circular(12),
+      backgroundColor: const Color(0xFF0F0F23),
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isWideScreen = constraints.maxWidth > 800;
+            return SingleChildScrollView(
+              padding: EdgeInsets.all(isWideScreen ? 48.0 : 24.0),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 600),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _buildHeader(isWideScreen),
+                      SizedBox(height: isWideScreen ? 48 : 32),
+                      _buildStatusCard(isWideScreen),
+                      SizedBox(height: isWideScreen ? 32 : 24),
+                      _buildSensitivityCard(isWideScreen),
+                      SizedBox(height: isWideScreen ? 32 : 24),
+                      _buildControlButton(isWideScreen),
+                    ],
+                  ),
+                ),
               ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  /// Builds the application header.
+  Widget _buildHeader(bool isWideScreen) {
+    return Column(
+      children: [
+        Icon(
+          Icons.monitor_heart_rounded,
+          size: isWideScreen ? 64 : 48,
+          color: Theme.of(context).colorScheme.primary,
+        ),
+        const SizedBox(height: 16),
+        Text(
+          'Posture Monitor',
+          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Monitor your posture in real-time',
+          style: Theme.of(
+            context,
+          ).textTheme.bodyLarge?.copyWith(color: Colors.white70),
+        ),
+      ],
+    );
+  }
+
+  /// Builds the posture status display card.
+  Widget _buildStatusCard(bool isWideScreen) {
+    return AnimatedBuilder(
+      animation: _pulseAnimation,
+      builder: (context, child) {
+        return Transform.scale(
+          scale: _currentPosture == PostureState.notResolved && _isMonitoring
+              ? _pulseAnimation.value
+              : 1.0,
+          child: Card(
+            child: Container(
+              width: double.infinity,
+              padding: EdgeInsets.all(isWideScreen ? 32 : 24),
               child: Column(
                 children: [
-                  Icon(_getStatusIcon(), size: 48, color: _getStatusColor()),
-                  const SizedBox(height: 8),
-                  Text(
-                    _getStatusText(),
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: _getStatusColor(),
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: _currentPosture.color.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: _currentPosture.color,
+                        width: 3,
+                      ),
+                    ),
+                    child: Icon(
+                      _currentPosture.icon,
+                      size: isWideScreen ? 64 : 48,
+                      color: _currentPosture.color,
                     ),
                   ),
+                  const SizedBox(height: 16),
+                  Text(
+                    _currentPosture.label,
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: _currentPosture.color,
+                    ),
+                  ),
+                  if (_isMonitoring) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      'Monitoring active',
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodyMedium?.copyWith(color: Colors.white60),
+                    ),
+                  ],
                 ],
               ),
             ),
-            const SizedBox(height: 32),
-            // Sensitivity Slider
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Sensitivity: ${_sensitivity.toStringAsFixed(2)}',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    Slider(
-                      value: _sensitivity,
-                      min: 0.0,
-                      max: 1.0,
-                      divisions: 20,
-                      onChanged: _isMonitoring
-                          ? null
-                          : (value) {
-                              setState(() {
-                                _sensitivity = value;
-                              });
-                            },
-                    ),
-                  ],
+          ),
+        );
+      },
+    );
+  }
+
+  /// Builds the sensitivity configuration card.
+  Widget _buildSensitivityCard(bool isWideScreen) {
+    return Card(
+      child: Padding(
+        padding: EdgeInsets.all(isWideScreen ? 24 : 20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Detection Sensitivity',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
                 ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    '${(_sensitivity * 100).round()}%',
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: Theme.of(context).colorScheme.primary,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            SliderTheme(
+              data: SliderTheme.of(context).copyWith(
+                trackHeight: 6,
+                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 12),
+                overlayShape: const RoundSliderOverlayShape(overlayRadius: 24),
+              ),
+              child: Slider(
+                value: _sensitivity,
+                min: 0.0,
+                max: 1.0,
+                divisions: 20,
+                onChanged: _isMonitoring
+                    ? null
+                    : (value) {
+                        setState(() => _sensitivity = value);
+                      },
               ),
             ),
-            const SizedBox(height: 32),
-            // Start/Stop Button
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton.icon(
-                onPressed: _isMonitoring ? _stopMonitoring : _startMonitoring,
-                icon: Icon(_isMonitoring ? Icons.stop : Icons.play_arrow),
-                label: Text(
-                  _isMonitoring ? 'Stop Monitoring' : 'Start Monitoring',
-                  style: const TextStyle(fontSize: 16),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Low',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: Colors.white60),
                 ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _isMonitoring ? Colors.red : Colors.green,
-                  foregroundColor: Colors.white,
+                Text(
+                  'High',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: Colors.white60),
                 ),
-              ),
+              ],
             ),
           ],
         ),
@@ -320,12 +439,37 @@ class _PostureMonitorHomeState extends State<PostureMonitorHome>
     );
   }
 
-  /// Handles window close event to hide to system tray instead of exiting.
-  @override
-  void onWindowClose() async {
-    bool isPreventClose = await windowManager.isPreventClose();
-    if (isPreventClose) {
-      await windowManager.hide();
-    }
+  /// Builds the start/stop monitoring control button.
+  Widget _buildControlButton(bool isWideScreen) {
+    return SizedBox(
+      width: double.infinity,
+      height: isWideScreen ? 64 : 56,
+      child: ElevatedButton.icon(
+        onPressed: _isMonitoring ? _stopMonitoring : _startMonitoring,
+        icon: Icon(
+          _isMonitoring ? Icons.stop_rounded : Icons.play_arrow_rounded,
+          size: isWideScreen ? 28 : 24,
+        ),
+        label: Text(
+          _isMonitoring ? 'Stop Monitoring' : 'Start Monitoring',
+          style: TextStyle(
+            fontSize: isWideScreen ? 18 : 16,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: _isMonitoring
+              ? const Color(0xFFEF4444)
+              : const Color(0xFF10B981),
+          foregroundColor: Colors.white,
+          elevation: 8,
+          shadowColor:
+              (_isMonitoring
+                      ? const Color(0xFFEF4444)
+                      : const Color(0xFF10B981))
+                  .withValues(alpha: 0.3),
+        ),
+      ),
+    );
   }
 }
