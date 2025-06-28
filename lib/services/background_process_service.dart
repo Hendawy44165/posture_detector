@@ -44,7 +44,6 @@ class PostureMonitorClient {
 
       print('Posture monitor process started with PID: ${_process!.pid}');
 
-      // Listen to stdout for JSON data
       _stdoutSubscription = _process!.stdout
           .transform(utf8.decoder)
           .transform(const LineSplitter())
@@ -54,7 +53,6 @@ class PostureMonitorClient {
             onDone: _handleStdoutDone,
           );
 
-      // Listen to stderr for logs
       _stderrSubscription = _process!.stderr
           .transform(utf8.decoder)
           .transform(const LineSplitter())
@@ -64,7 +62,6 @@ class PostureMonitorClient {
             onDone: _handleStderrDone,
           );
 
-      // Handle process exit
       _process!.exitCode.then(_handleProcessExit);
     } catch (e) {
       print('Failed to start posture monitor: $e');

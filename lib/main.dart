@@ -5,7 +5,14 @@ import 'dart:async';
 import 'models/posture_models.dart';
 import 'services/background_process_service.dart';
 
-/// Entry point for the Posture Monitor Flutter application.
+import 'components/theme/app_theme.dart';
+import 'components/enums/posture_state.dart';
+import 'components/widgets/window_controls.dart';
+import 'components/widgets/header.dart';
+import 'components/widgets/status_card.dart';
+import 'components/widgets/sensitivity_card.dart';
+import 'components/widgets/control_button.dart';
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await windowManager.ensureInitialized();
@@ -28,7 +35,6 @@ Future<void> main() async {
   runApp(const PostureMonitorApp());
 }
 
-/// The root application widget with modern dark theme.
 class PostureMonitorApp extends StatelessWidget {
   const PostureMonitorApp({super.key});
 
@@ -36,77 +42,12 @@ class PostureMonitorApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Posture Monitor',
-      theme: _buildDarkTheme(),
+      theme: AppTheme.darkTheme,
       home: const PostureMonitorScreen(),
-      debugShowCheckedModeBanner: false,
-    );
-  }
-
-  /// Creates a modern dark theme with rounded corners and smooth animations.
-  ThemeData _buildDarkTheme() {
-    return ThemeData(
-      brightness: Brightness.dark,
-      useMaterial3: true,
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: const Color(0xFF6366F1),
-        brightness: Brightness.dark,
-      ),
-      cardTheme: CardThemeData(
-        elevation: 8,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      ),
-      elevatedButtonTheme: ElevatedButtonThemeData(
-        style: ElevatedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      ),
     );
   }
 }
 
-/// Enum representing different posture states.
-enum PostureState { upright, leaning, notResolved }
-
-/// Extension to provide UI properties for posture states.
-extension PostureStateExtension on PostureState {
-  Color get color {
-    switch (this) {
-      case PostureState.upright:
-        return const Color(0xFF10B981);
-      case PostureState.leaning:
-        return const Color(0xFFEF4444);
-      case PostureState.notResolved:
-        return const Color(0xFFF59E0B);
-    }
-  }
-
-  String get label {
-    switch (this) {
-      case PostureState.upright:
-        return 'Perfect Posture';
-      case PostureState.leaning:
-        return 'Poor Posture';
-      case PostureState.notResolved:
-        return 'Detecting...';
-    }
-  }
-
-  IconData get icon {
-    switch (this) {
-      case PostureState.upright:
-        return Icons.check_circle_rounded;
-      case PostureState.leaning:
-        return Icons.warning_rounded;
-      case PostureState.notResolved:
-        return Icons.sync_rounded;
-    }
-  }
-}
-
-/// The main posture monitoring screen with modern UI design.
 class PostureMonitorScreen extends StatefulWidget {
   const PostureMonitorScreen({super.key});
 
@@ -128,21 +69,8 @@ class _PostureMonitorScreenState extends State<PostureMonitorScreen>
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
 
-  @override
-  void initState() {
-    super.initState();
-    _initializeAnimations();
-  }
+  // TODO: make the animation pause when the app is not in focus
 
-  @override
-  void dispose() {
-    _pulseController.dispose();
-    _stopMonitoring();
-    _client?.dispose();
-    super.dispose();
-  }
-
-  /// Initialize animations for the status indicator.
   void _initializeAnimations() {
     _pulseController = AnimationController(
       duration: const Duration(seconds: 2),
@@ -154,7 +82,6 @@ class _PostureMonitorScreenState extends State<PostureMonitorScreen>
     _pulseController.repeat(reverse: true);
   }
 
-  /// Starts posture monitoring with the current configuration.
   Future<void> _startMonitoring() async {
     try {
       final config = PostureMonitorConfig(
@@ -187,7 +114,6 @@ class _PostureMonitorScreenState extends State<PostureMonitorScreen>
     }
   }
 
-  /// Stops posture monitoring and cleans up resources.
   Future<void> _stopMonitoring() async {
     await _postureSubscription?.cancel();
     await _errorSubscription?.cancel();
@@ -200,7 +126,6 @@ class _PostureMonitorScreenState extends State<PostureMonitorScreen>
     });
   }
 
-  /// Handles posture detection results.
   void _handlePostureResult(PostureResult result) {
     setState(() {
       _currentPosture = result.isLeaning
@@ -209,24 +134,20 @@ class _PostureMonitorScreenState extends State<PostureMonitorScreen>
     });
   }
 
-  /// Handles posture detection errors.
   void _handlePostureError(PostureError error) {
     setState(() => _currentPosture = PostureState.notResolved);
     _showErrorSnackBar('Detection error: ${error.message}');
   }
 
-  /// Handles status updates from the monitoring service.
   void _handleStatusUpdate(PostureStatus status) {
     debugPrint('Status: ${status.message}');
   }
 
-  /// Handles stream errors.
   void _handleStreamError(dynamic error) {
     setState(() => _currentPosture = PostureState.notResolved);
     _showErrorSnackBar('Stream error: ${error.toString()}');
   }
 
-  /// Shows an error message using a SnackBar.
   void _showErrorSnackBar(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -246,7 +167,7 @@ class _PostureMonitorScreenState extends State<PostureMonitorScreen>
       body: SafeArea(
         child: Column(
           children: [
-            _buildWindowControls(),
+            const WindowControls(),
             Expanded(
               child: LayoutBuilder(
                 builder: (context, constraints) {
@@ -259,13 +180,30 @@ class _PostureMonitorScreenState extends State<PostureMonitorScreen>
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            _buildHeader(isWideScreen),
+                            Header(isWideScreen: isWideScreen),
                             SizedBox(height: isWideScreen ? 48 : 32),
-                            _buildStatusCard(isWideScreen),
+                            StatusCard(
+                              postureState: _currentPosture,
+                              isMonitoring: _isMonitoring,
+                              pulseAnimation: _pulseAnimation,
+                              isWideScreen: isWideScreen,
+                            ),
                             SizedBox(height: isWideScreen ? 32 : 24),
-                            _buildSensitivityCard(isWideScreen),
+                            SensitivityCard(
+                              sensitivity: _sensitivity,
+                              onSensitivityChanged: (value) {
+                                setState(() => _sensitivity = value);
+                                _stopMonitoring();
+                              },
+                              isWideScreen: isWideScreen,
+                            ),
                             SizedBox(height: isWideScreen ? 32 : 24),
-                            _buildControlButton(isWideScreen),
+                            ControlButton(
+                              isMonitoring: _isMonitoring,
+                              onStartPressed: _startMonitoring,
+                              onStopPressed: _stopMonitoring,
+                              isWideScreen: isWideScreen,
+                            ),
                           ],
                         ),
                       ),
@@ -280,306 +218,17 @@ class _PostureMonitorScreenState extends State<PostureMonitorScreen>
     );
   }
 
-  /// Builds the custom window control buttons.
-  // Widget _buildWindowControls() {
-  //   return Container(
-  //     height: 40,
-  //     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-  //     decoration: BoxDecoration(
-  //       color: const Color(0xFF1A1A2E).withValues(alpha: 0.8),
-  //       border: Border(
-  //         bottom: BorderSide(
-  //           color: Colors.white.withValues(alpha: 0.1),
-  //           width: 1,
-  //         ),
-  //       ),
-  //     ),
-  //     child: Row(
-  //       mainAxisAlignment: MainAxisAlignment.end,
-  //       children: [
-  //         _buildWindowButton(
-  //           icon: Icons.remove_rounded,
-  //           color: const Color(0xFFFBBF24),
-  //           onPressed: () async {
-  //             await windowManager.minimize();
-  //           },
-  //           tooltip: 'Minimize',
-  //         ),
-  //         const SizedBox(width: 12),
-  //         _buildWindowButton(
-  //           icon: Icons.crop_square_rounded,
-  //           color: const Color(0xFF6B7280),
-  //           onPressed: null, // Disabled as requested
-  //           tooltip: 'Maximize (Disabled)',
-  //         ),
-  //         const SizedBox(width: 12),
-  //         _buildWindowButton(
-  //           icon: Icons.close_rounded,
-  //           color: const Color(0xFFEF4444),
-  //           onPressed: () async {
-  //             await windowManager.close();
-  //           },
-  //           tooltip: 'Close',
-  //         ),
-  //       ],
-  //     ),
-  //   );
-  // }
-
-  /// Builds the macOS-style window control buttons (close, minimize, maximize).
-  Widget _buildWindowControls() {
-    return Container(
-      height: 40,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1A1A2E).withAlpha(200),
-        border: Border(
-          bottom: BorderSide(color: Colors.white.withAlpha(25), width: 1),
-        ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.start,
-        children: [
-          _buildMacWindowDot(
-            color: const Color(0xFFFF5F57), // Red
-            tooltip: 'Close',
-            onPressed: () async => await windowManager.close(),
-          ),
-          const SizedBox(width: 8),
-          _buildMacWindowDot(
-            color: const Color(0xFFFFBD2E), // Yellow
-            tooltip: 'Minimize',
-            onPressed: () async => await windowManager.minimize(),
-          ),
-          const SizedBox(width: 8),
-          _buildMacWindowDot(
-            color: const Color(0xFF28C840), // Green
-            tooltip: 'Maximize (Disabled)',
-            onPressed: null, // Disabled
-          ),
-        ],
-      ),
-    );
+  @override
+  void initState() {
+    super.initState();
+    _initializeAnimations();
   }
 
-  /// Builds a macOS-style circular window control dot.
-  Widget _buildMacWindowDot({
-    required Color color,
-    required String tooltip,
-    required VoidCallback? onPressed,
-  }) {
-    return Tooltip(
-      message: tooltip,
-      child: GestureDetector(
-        onTap: onPressed,
-        child: Container(
-          width: 12,
-          height: 12,
-          decoration: BoxDecoration(
-            color: color.withAlpha(onPressed != null ? 255 : 77),
-            shape: BoxShape.circle,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeader(bool isWideScreen) {
-    return Column(
-      children: [
-        Icon(
-          Icons.monitor_heart_rounded,
-          size: isWideScreen ? 64 : 48,
-          color: Theme.of(context).colorScheme.primary,
-        ),
-        const SizedBox(height: 16),
-        Text(
-          'Posture Monitor',
-          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Monitor your posture in real-time',
-          style: Theme.of(
-            context,
-          ).textTheme.bodyLarge?.copyWith(color: Colors.white70),
-        ),
-      ],
-    );
-  }
-
-  /// Builds the posture status display card.
-  Widget _buildStatusCard(bool isWideScreen) {
-    return AnimatedBuilder(
-      animation: _pulseAnimation,
-      builder: (context, child) {
-        return Transform.scale(
-          scale: _currentPosture == PostureState.notResolved && _isMonitoring
-              ? _pulseAnimation.value
-              : 1.0,
-          child: Card(
-            child: Container(
-              width: double.infinity,
-              padding: EdgeInsets.all(isWideScreen ? 32 : 24),
-              child: Column(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: _currentPosture.color.withValues(alpha: 0.1),
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: _currentPosture.color,
-                        width: 3,
-                      ),
-                    ),
-                    child: Icon(
-                      _currentPosture.icon,
-                      size: isWideScreen ? 64 : 48,
-                      color: _currentPosture.color,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    _currentPosture.label,
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: _currentPosture.color,
-                    ),
-                  ),
-                  if (_isMonitoring) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      'Monitoring active',
-                      style: Theme.of(
-                        context,
-                      ).textTheme.bodyMedium?.copyWith(color: Colors.white60),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  /// Builds the sensitivity configuration card.
-  Widget _buildSensitivityCard(bool isWideScreen) {
-    return Card(
-      child: Padding(
-        padding: EdgeInsets.all(isWideScreen ? 24 : 20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Detection Sensitivity',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.primary.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    '${(_sensitivity * 100).round()}%',
-                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      color: Theme.of(context).colorScheme.primary,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            SliderTheme(
-              data: SliderTheme.of(context).copyWith(
-                trackHeight: 6,
-                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 12),
-                overlayShape: const RoundSliderOverlayShape(overlayRadius: 24),
-              ),
-              child: Slider(
-                value: _sensitivity,
-                min: 0.0,
-                max: 1.0,
-                divisions: 20,
-                onChanged: _isMonitoring
-                    ? null
-                    : (value) {
-                        setState(() => _sensitivity = value);
-                      },
-              ),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Low',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodySmall?.copyWith(color: Colors.white60),
-                ),
-                Text(
-                  'High',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodySmall?.copyWith(color: Colors.white60),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Builds the start/stop monitoring control button.
-  Widget _buildControlButton(bool isWideScreen) {
-    return SizedBox(
-      width: double.infinity,
-      height: isWideScreen ? 64 : 56,
-      child: ElevatedButton.icon(
-        onPressed: _isMonitoring ? _stopMonitoring : _startMonitoring,
-        icon: Icon(
-          _isMonitoring ? Icons.stop_rounded : Icons.play_arrow_rounded,
-          size: isWideScreen ? 28 : 24,
-        ),
-        label: Text(
-          _isMonitoring ? 'Stop Monitoring' : 'Start Monitoring',
-          style: TextStyle(
-            fontSize: isWideScreen ? 18 : 16,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: _isMonitoring
-              ? const Color(0xFFEF4444)
-              : const Color(0xFF10B981),
-          foregroundColor: Colors.white,
-          elevation: 8,
-          shadowColor:
-              (_isMonitoring
-                      ? const Color(0xFFEF4444)
-                      : const Color(0xFF10B981))
-                  .withValues(alpha: 0.3),
-        ),
-      ),
-    );
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    _stopMonitoring();
+    _client?.dispose();
+    super.dispose();
   }
 }
