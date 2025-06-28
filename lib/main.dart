@@ -244,36 +244,146 @@ class _PostureMonitorScreenState extends State<PostureMonitorScreen>
     return Scaffold(
       backgroundColor: const Color(0xFF0F0F23),
       body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final isWideScreen = constraints.maxWidth > 800;
-            return SingleChildScrollView(
-              padding: EdgeInsets.all(isWideScreen ? 48.0 : 24.0),
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 600),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      _buildHeader(isWideScreen),
-                      SizedBox(height: isWideScreen ? 48 : 32),
-                      _buildStatusCard(isWideScreen),
-                      SizedBox(height: isWideScreen ? 32 : 24),
-                      _buildSensitivityCard(isWideScreen),
-                      SizedBox(height: isWideScreen ? 32 : 24),
-                      _buildControlButton(isWideScreen),
-                    ],
-                  ),
-                ),
+        child: Column(
+          children: [
+            _buildWindowControls(),
+            Expanded(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final isWideScreen = constraints.maxWidth > 800;
+                  return SingleChildScrollView(
+                    padding: EdgeInsets.all(isWideScreen ? 48.0 : 24.0),
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 600),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            _buildHeader(isWideScreen),
+                            SizedBox(height: isWideScreen ? 48 : 32),
+                            _buildStatusCard(isWideScreen),
+                            SizedBox(height: isWideScreen ? 32 : 24),
+                            _buildSensitivityCard(isWideScreen),
+                            SizedBox(height: isWideScreen ? 32 : 24),
+                            _buildControlButton(isWideScreen),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
               ),
-            );
-          },
+            ),
+          ],
         ),
       ),
     );
   }
 
-  /// Builds the application header.
+  /// Builds the custom window control buttons.
+  // Widget _buildWindowControls() {
+  //   return Container(
+  //     height: 40,
+  //     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+  //     decoration: BoxDecoration(
+  //       color: const Color(0xFF1A1A2E).withValues(alpha: 0.8),
+  //       border: Border(
+  //         bottom: BorderSide(
+  //           color: Colors.white.withValues(alpha: 0.1),
+  //           width: 1,
+  //         ),
+  //       ),
+  //     ),
+  //     child: Row(
+  //       mainAxisAlignment: MainAxisAlignment.end,
+  //       children: [
+  //         _buildWindowButton(
+  //           icon: Icons.remove_rounded,
+  //           color: const Color(0xFFFBBF24),
+  //           onPressed: () async {
+  //             await windowManager.minimize();
+  //           },
+  //           tooltip: 'Minimize',
+  //         ),
+  //         const SizedBox(width: 12),
+  //         _buildWindowButton(
+  //           icon: Icons.crop_square_rounded,
+  //           color: const Color(0xFF6B7280),
+  //           onPressed: null, // Disabled as requested
+  //           tooltip: 'Maximize (Disabled)',
+  //         ),
+  //         const SizedBox(width: 12),
+  //         _buildWindowButton(
+  //           icon: Icons.close_rounded,
+  //           color: const Color(0xFFEF4444),
+  //           onPressed: () async {
+  //             await windowManager.close();
+  //           },
+  //           tooltip: 'Close',
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
+
+  /// Builds the macOS-style window control buttons (close, minimize, maximize).
+  Widget _buildWindowControls() {
+    return Container(
+      height: 40,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A1A2E).withAlpha(200),
+        border: Border(
+          bottom: BorderSide(color: Colors.white.withAlpha(25), width: 1),
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.start,
+        children: [
+          _buildMacWindowDot(
+            color: const Color(0xFFFF5F57), // Red
+            tooltip: 'Close',
+            onPressed: () async => await windowManager.close(),
+          ),
+          const SizedBox(width: 8),
+          _buildMacWindowDot(
+            color: const Color(0xFFFFBD2E), // Yellow
+            tooltip: 'Minimize',
+            onPressed: () async => await windowManager.minimize(),
+          ),
+          const SizedBox(width: 8),
+          _buildMacWindowDot(
+            color: const Color(0xFF28C840), // Green
+            tooltip: 'Maximize (Disabled)',
+            onPressed: null, // Disabled
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Builds a macOS-style circular window control dot.
+  Widget _buildMacWindowDot({
+    required Color color,
+    required String tooltip,
+    required VoidCallback? onPressed,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: GestureDetector(
+        onTap: onPressed,
+        child: Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(
+            color: color.withAlpha(onPressed != null ? 255 : 77),
+            shape: BoxShape.circle,
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildHeader(bool isWideScreen) {
     return Column(
       children: [
