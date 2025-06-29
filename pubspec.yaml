@@ -39,6 +39,7 @@ dependencies:
   path: ^1.8.3
   riverpod: ^2.6.1
   flutter_riverpod: ^2.6.1
+  windows_taskbar: ^1.1.2
 
 dev_dependencies:
   flutter_test:

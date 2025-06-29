@@ -2,8 +2,10 @@ import 'package:posture_detector/models/posture_models.dart';
 import 'package:posture_detector/services/background_process_service.dart';
 import 'package:posture_detector/components/enums/posture_state.dart';
 import 'package:flutter/material.dart';
+import 'package:posture_detector/services/notification_service.dart';
 import 'package:riverpod/riverpod.dart';
 import 'dart:async';
+import 'package:window_manager/window_manager.dart';
 
 class PostureMonitorState {
   final PostureState postureState;
@@ -111,14 +113,21 @@ class PostureMonitorNotifier extends StateNotifier<PostureMonitorState> {
     state = state.copyWith(errorMessage: null);
   }
 
-  void _handlePostureResult(PostureResult result) {
+  void _handlePostureResult(PostureResult result) async {
     final newPostureState = result.isLeaning
         ? PostureState.leaning
         : PostureState.upright;
 
+    if (newPostureState == PostureState.leaning &&
+        await windowManager.isVisible()) {
+      unawaited(windowManager.setAlwaysOnTop(true));
+      unawaited(windowManager.focus());
+      unawaited(windowManager.restore());
+      unawaited(windowManager.setAlwaysOnTop(false));
+    }
+
     if (state.postureState == newPostureState) return;
 
-    // Update the state first
     state = state.copyWith(postureState: newPostureState, errorMessage: null);
 
     _resumeAnimation();
@@ -128,6 +137,7 @@ class PostureMonitorNotifier extends StateNotifier<PostureMonitorState> {
     if (state.postureState == PostureState.notResolved) return;
 
     _resumeAnimation();
+    NotificationService().show('Posture DETECTION error', error.message);
     state = state.copyWith(
       postureState: PostureState.notResolved,
       errorMessage: 'Detection error: ${error.message}',
@@ -142,6 +152,7 @@ class PostureMonitorNotifier extends StateNotifier<PostureMonitorState> {
     if (state.postureState == PostureState.notResolved) return;
 
     _resumeAnimation();
+    NotificationService().show('Posture STREAM error', error.toString());
     state = state.copyWith(
       postureState: PostureState.notResolved,
       errorMessage: 'Stream error: $error',
