@@ -37,6 +37,8 @@ dependencies:
   window_manager: ^0.3.7
   flutter_local_notifications: ^16.3.2
   path: ^1.8.3
+  riverpod: ^2.6.1
+  flutter_riverpod: ^2.6.1
 
 dev_dependencies:
   flutter_test:

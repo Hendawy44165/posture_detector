@@ -1,12 +1,10 @@
-import 'package:flutter/material.dart';
-import 'package:window_manager/window_manager.dart';
 import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:window_manager/window_manager.dart';
 
-import 'models/posture_models.dart';
-import 'services/background_process_service.dart';
-
+import 'providers/posture_monitor_provider.dart';
 import 'components/theme/app_theme.dart';
-import 'components/enums/posture_state.dart';
 import 'components/widgets/window_controls.dart';
 import 'components/widgets/header.dart';
 import 'components/widgets/status_card.dart';
@@ -32,7 +30,7 @@ Future<void> main() async {
     await windowManager.focus();
   });
 
-  runApp(const PostureMonitorApp());
+  runApp(const ProviderScope(child: PostureMonitorApp()));
 }
 
 class PostureMonitorApp extends StatelessWidget {
@@ -48,120 +46,42 @@ class PostureMonitorApp extends StatelessWidget {
   }
 }
 
-class PostureMonitorScreen extends StatefulWidget {
+class PostureMonitorScreen extends ConsumerStatefulWidget {
   const PostureMonitorScreen({super.key});
 
   @override
-  State<PostureMonitorScreen> createState() => _PostureMonitorScreenState();
+  ConsumerState<PostureMonitorScreen> createState() =>
+      _PostureMonitorScreenState();
 }
 
-class _PostureMonitorScreenState extends State<PostureMonitorScreen>
-    with TickerProviderStateMixin {
-  PostureMonitorClient? _client;
-  PostureState _currentPosture = PostureState.notResolved;
-  bool _isMonitoring = false;
-  double _sensitivity = 0.4;
-
-  StreamSubscription<PostureResult>? _postureSubscription;
-  StreamSubscription<PostureError>? _errorSubscription;
-  StreamSubscription<PostureStatus>? _statusSubscription;
-
+class _PostureMonitorScreenState extends ConsumerState<PostureMonitorScreen>
+    with SingleTickerProviderStateMixin {
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
 
   // TODO: make the animation pause when the app is not in focus
 
-  void _initializeAnimations() {
-    _pulseController = AnimationController(
-      duration: const Duration(seconds: 2),
-      vsync: this,
-    );
-    _pulseAnimation = Tween<double>(begin: 0.8, end: 1.2).animate(
-      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
-    );
-    _pulseController.repeat(reverse: true);
-  }
-
-  Future<void> _startMonitoring() async {
-    try {
-      final config = PostureMonitorConfig(
-        sensitivity: _sensitivity,
-        interval: 1.0,
-        verbose: true,
-      );
-      _client = PostureMonitorClient(config: config);
-
-      _postureSubscription = _client!.postureStream.listen(
-        _handlePostureResult,
-        onError: _handleStreamError,
-      );
-
-      _errorSubscription = _client!.errorStream.listen(
-        _handlePostureError,
-        onError: _handleStreamError,
-      );
-
-      _statusSubscription = _client!.statusStream.listen(
-        _handleStatusUpdate,
-        onError: _handleStreamError,
-      );
-
-      await _client!.start();
-      setState(() => _isMonitoring = true);
-    } catch (e) {
-      setState(() => _currentPosture = PostureState.notResolved);
-      _showErrorSnackBar('Failed to start monitoring: ${e.toString()}');
-    }
-  }
-
-  Future<void> _stopMonitoring() async {
-    await _postureSubscription?.cancel();
-    await _errorSubscription?.cancel();
-    await _statusSubscription?.cancel();
-    await _client?.stop();
-
-    setState(() {
-      _isMonitoring = false;
-      _currentPosture = PostureState.notResolved;
-    });
-  }
-
-  void _handlePostureResult(PostureResult result) {
-    setState(() {
-      _currentPosture = result.isLeaning
-          ? PostureState.leaning
-          : PostureState.upright;
-    });
-  }
-
-  void _handlePostureError(PostureError error) {
-    setState(() => _currentPosture = PostureState.notResolved);
-    _showErrorSnackBar('Detection error: ${error.message}');
-  }
-
-  void _handleStatusUpdate(PostureStatus status) {
-    debugPrint('Status: ${status.message}');
-  }
-
-  void _handleStreamError(dynamic error) {
-    setState(() => _currentPosture = PostureState.notResolved);
-    _showErrorSnackBar('Stream error: ${error.toString()}');
-  }
-
-  void _showErrorSnackBar(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: const Color(0xFFEF4444),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
+    final monitorState = ref.watch(postureMonitorProvider);
+    final monitorNotifier = ref.read(postureMonitorProvider.notifier);
+
+    if (monitorState.errorMessage != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(monitorState.errorMessage!),
+            backgroundColor: const Color(0xFFEF4444),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+        );
+        monitorNotifier.clearErrorState();
+      });
+    }
+
     return Scaffold(
       backgroundColor: const Color(0xFF0F0F23),
       body: SafeArea(
@@ -183,25 +103,24 @@ class _PostureMonitorScreenState extends State<PostureMonitorScreen>
                             Header(isWideScreen: isWideScreen),
                             SizedBox(height: isWideScreen ? 48 : 32),
                             StatusCard(
-                              postureState: _currentPosture,
-                              isMonitoring: _isMonitoring,
+                              postureState: monitorState.postureState,
+                              isMonitoring: monitorState.isMonitoring,
                               pulseAnimation: _pulseAnimation,
                               isWideScreen: isWideScreen,
                             ),
                             SizedBox(height: isWideScreen ? 32 : 24),
                             SensitivityCard(
-                              sensitivity: _sensitivity,
+                              sensitivity: monitorState.sensitivity,
                               onSensitivityChanged: (value) {
-                                setState(() => _sensitivity = value);
-                                _stopMonitoring();
+                                monitorNotifier.updateSensitivity(value);
                               },
                               isWideScreen: isWideScreen,
                             ),
                             SizedBox(height: isWideScreen ? 32 : 24),
                             ControlButton(
-                              isMonitoring: _isMonitoring,
-                              onStartPressed: _startMonitoring,
-                              onStopPressed: _stopMonitoring,
+                              isMonitoring: monitorState.isMonitoring,
+                              onStartPressed: monitorNotifier.startMonitoring,
+                              onStopPressed: monitorNotifier.stopMonitoring,
                               isWideScreen: isWideScreen,
                             ),
                           ],
@@ -218,6 +137,17 @@ class _PostureMonitorScreenState extends State<PostureMonitorScreen>
     );
   }
 
+  void _initializeAnimations() {
+    _pulseController = AnimationController(
+      duration: const Duration(seconds: 2),
+      vsync: this,
+    );
+    _pulseAnimation = Tween<double>(begin: 0.8, end: 1.2).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
+    _pulseController.repeat(reverse: true);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -227,8 +157,6 @@ class _PostureMonitorScreenState extends State<PostureMonitorScreen>
   @override
   void dispose() {
     _pulseController.dispose();
-    _stopMonitoring();
-    _client?.dispose();
     super.dispose();
   }
 }
