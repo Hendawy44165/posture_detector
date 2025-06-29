@@ -38,6 +38,7 @@ class PostureMonitorNotifier extends StateNotifier<PostureMonitorState> {
     : super(PostureMonitorState());
 
   final AnimationController pulseController;
+  bool _windowPaused = false;
 
   PostureMonitorClient? _client;
   StreamSubscription<PostureResult>? _postureSubscription;
@@ -102,6 +103,7 @@ class PostureMonitorNotifier extends StateNotifier<PostureMonitorState> {
     state = state.copyWith(sensitivity: value);
     if (state.isMonitoring) {
       stopMonitoring();
+      startMonitoring();
     }
   }
 
@@ -119,16 +121,12 @@ class PostureMonitorNotifier extends StateNotifier<PostureMonitorState> {
     // Update the state first
     state = state.copyWith(postureState: newPostureState, errorMessage: null);
 
-    // Control animation based on the new state
-    if (newPostureState == PostureState.notResolved) {
-      _resumeAnimation();
-    } else {
-      _pauseAnimation();
-    }
+    _resumeAnimation();
   }
 
   void _handlePostureError(PostureError error) {
     if (state.postureState == PostureState.notResolved) return;
+
     _resumeAnimation();
     state = state.copyWith(
       postureState: PostureState.notResolved,
@@ -142,6 +140,7 @@ class PostureMonitorNotifier extends StateNotifier<PostureMonitorState> {
 
   void _handleStreamError(dynamic error) {
     if (state.postureState == PostureState.notResolved) return;
+
     _resumeAnimation();
     state = state.copyWith(
       postureState: PostureState.notResolved,
@@ -150,14 +149,32 @@ class PostureMonitorNotifier extends StateNotifier<PostureMonitorState> {
   }
 
   void _resumeAnimation() {
-    if (pulseController.isAnimating) return;
+    if (pulseController.isAnimating || _windowPaused) {
+      return;
+    }
+
     pulseController.animateTo(0.5);
     pulseController.repeat(reverse: true);
   }
 
   void _pauseAnimation() {
-    if (!pulseController.isAnimating) return;
+    if (!pulseController.isAnimating) {
+      return;
+    }
+
     pulseController.stop();
+  }
+
+  void pauseDueToWindow() {
+    _windowPaused = true;
+    _pauseAnimation();
+  }
+
+  void resumeDueToWindow() {
+    _windowPaused = false;
+    if (state.postureState == PostureState.notResolved) {
+      _resumeAnimation();
+    }
   }
 
   @override

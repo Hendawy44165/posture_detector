@@ -55,18 +55,17 @@ class PostureMonitorScreen extends ConsumerStatefulWidget {
 }
 
 class _PostureMonitorScreenState extends ConsumerState<PostureMonitorScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WindowListener {
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
+
   late StateNotifierProvider<PostureMonitorNotifier, PostureMonitorState>
   postureMonitorProvider;
-
-  // TODO: make the animation pause when the app is not in focus
+  late PostureMonitorNotifier monitorNotifier;
 
   @override
   Widget build(BuildContext context) {
     final monitorState = ref.watch(postureMonitorProvider);
-    final monitorNotifier = ref.read(postureMonitorProvider.notifier);
 
     if (monitorState.errorMessage != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -139,6 +138,26 @@ class _PostureMonitorScreenState extends ConsumerState<PostureMonitorScreen>
     );
   }
 
+  @override
+  void onWindowMinimize() {
+    monitorNotifier.pauseDueToWindow();
+  }
+
+  @override
+  void onWindowRestore() {
+    monitorNotifier.resumeDueToWindow();
+  }
+
+  @override
+  void onWindowBlur() {
+    monitorNotifier.pauseDueToWindow();
+  }
+
+  @override
+  void onWindowFocus() {
+    monitorNotifier.resumeDueToWindow();
+  }
+
   void _initializeAnimations() {
     _pulseController = AnimationController(
       duration: const Duration(seconds: 2),
@@ -155,11 +174,14 @@ class _PostureMonitorScreenState extends ConsumerState<PostureMonitorScreen>
     super.initState();
     _initializeAnimations();
     postureMonitorProvider = getPostureMonitorProvider(_pulseController);
+    monitorNotifier = ref.read(postureMonitorProvider.notifier);
+    windowManager.addListener(this);
   }
 
   @override
   void dispose() {
-    ref.read(postureMonitorProvider.notifier).dispose();
+    monitorNotifier.dispose();
+    windowManager.removeListener(this);
     super.dispose();
   }
 }
