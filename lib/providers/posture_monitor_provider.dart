@@ -34,12 +34,15 @@ class PostureMonitorState {
 }
 
 class PostureMonitorNotifier extends StateNotifier<PostureMonitorState> {
+  PostureMonitorNotifier({required this.pulseController})
+    : super(PostureMonitorState());
+
+  final AnimationController pulseController;
+
   PostureMonitorClient? _client;
   StreamSubscription<PostureResult>? _postureSubscription;
   StreamSubscription<PostureError>? _errorSubscription;
   StreamSubscription<PostureStatus>? _statusSubscription;
-
-  PostureMonitorNotifier() : super(PostureMonitorState());
 
   Future<void> startMonitoring() async {
     if (state.isMonitoring) return;
@@ -70,6 +73,7 @@ class PostureMonitorNotifier extends StateNotifier<PostureMonitorState> {
 
       await _client!.start();
       state = state.copyWith(isMonitoring: true, errorMessage: null);
+      _resumeAnimation();
     } catch (e) {
       state = state.copyWith(
         postureState: PostureState.notResolved,
@@ -91,6 +95,7 @@ class PostureMonitorNotifier extends StateNotifier<PostureMonitorState> {
       postureState: PostureState.notResolved,
       errorMessage: null,
     );
+    _pauseAnimation();
   }
 
   void updateSensitivity(double value) {
@@ -105,15 +110,26 @@ class PostureMonitorNotifier extends StateNotifier<PostureMonitorState> {
   }
 
   void _handlePostureResult(PostureResult result) {
-    state = state.copyWith(
-      postureState: result.isLeaning
-          ? PostureState.leaning
-          : PostureState.upright,
-      errorMessage: null,
-    );
+    final newPostureState = result.isLeaning
+        ? PostureState.leaning
+        : PostureState.upright;
+
+    if (state.postureState == newPostureState) return;
+
+    // Update the state first
+    state = state.copyWith(postureState: newPostureState, errorMessage: null);
+
+    // Control animation based on the new state
+    if (newPostureState == PostureState.notResolved) {
+      _resumeAnimation();
+    } else {
+      _pauseAnimation();
+    }
   }
 
   void _handlePostureError(PostureError error) {
+    if (state.postureState == PostureState.notResolved) return;
+    _resumeAnimation();
     state = state.copyWith(
       postureState: PostureState.notResolved,
       errorMessage: 'Detection error: ${error.message}',
@@ -125,10 +141,23 @@ class PostureMonitorNotifier extends StateNotifier<PostureMonitorState> {
   }
 
   void _handleStreamError(dynamic error) {
+    if (state.postureState == PostureState.notResolved) return;
+    _resumeAnimation();
     state = state.copyWith(
       postureState: PostureState.notResolved,
       errorMessage: 'Stream error: $error',
     );
+  }
+
+  void _resumeAnimation() {
+    if (pulseController.isAnimating) return;
+    pulseController.animateTo(0.5);
+    pulseController.repeat(reverse: true);
+  }
+
+  void _pauseAnimation() {
+    if (!pulseController.isAnimating) return;
+    pulseController.stop();
   }
 
   @override
@@ -141,7 +170,8 @@ class PostureMonitorNotifier extends StateNotifier<PostureMonitorState> {
   }
 }
 
-final postureMonitorProvider =
+StateNotifierProvider<PostureMonitorNotifier, PostureMonitorState>
+getPostureMonitorProvider(AnimationController pulseController) =>
     StateNotifierProvider<PostureMonitorNotifier, PostureMonitorState>(
-      (ref) => PostureMonitorNotifier(),
+      (ref) => PostureMonitorNotifier(pulseController: pulseController),
     );

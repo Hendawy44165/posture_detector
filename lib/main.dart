@@ -58,6 +58,8 @@ class _PostureMonitorScreenState extends ConsumerState<PostureMonitorScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
+  late StateNotifierProvider<PostureMonitorNotifier, PostureMonitorState>
+  postureMonitorProvider;
 
   // TODO: make the animation pause when the app is not in focus
 
@@ -152,11 +154,12 @@ class _PostureMonitorScreenState extends ConsumerState<PostureMonitorScreen>
   void initState() {
     super.initState();
     _initializeAnimations();
+    postureMonitorProvider = getPostureMonitorProvider(_pulseController);
   }
 
   @override
   void dispose() {
-    _pulseController.dispose();
+    ref.read(postureMonitorProvider.notifier).dispose();
     super.dispose();
   }
 }
