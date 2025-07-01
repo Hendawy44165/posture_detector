@@ -36,6 +36,7 @@ class PostureMonitorState {
 }
 
 class PostureMonitorNotifier extends StateNotifier<PostureMonitorState> {
+  int _leaningCounter = 0;
   PostureMonitorNotifier() : super(PostureMonitorState());
 
   PostureMonitorClient? _client;
@@ -103,15 +104,21 @@ class PostureMonitorNotifier extends StateNotifier<PostureMonitorState> {
         ? PostureState.leaning
         : PostureState.upright;
 
-    if (newPostureState == PostureState.leaning &&
-        await windowManager.isVisible()) {
-      unawaited(windowManager.setAlwaysOnTop(true));
-      unawaited(windowManager.focus());
-      unawaited(windowManager.restore());
-      unawaited(windowManager.setAlwaysOnTop(false));
+    if (result.isLeaning) {
+      _leaningCounter++;
+      if (_leaningCounter > 10) {
+        unawaited(windowManager.setAlwaysOnTop(true));
+        unawaited(windowManager.focus());
+        unawaited(windowManager.restore());
+        unawaited(windowManager.setAlwaysOnTop(false));
+        _leaningCounter = 0;
+      }
+    } else {
+      _leaningCounter = 0;
     }
 
-    if (state.postureState == newPostureState) return;
+    if (state.postureState == newPostureState)
+      return; // prevent unnecessary state updates
 
     state = state.copyWith(postureState: newPostureState, errorMessage: null);
   }
