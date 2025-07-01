@@ -49,7 +49,6 @@ class PostureMonitorNotifier extends StateNotifier<PostureMonitorState> {
       final config = PostureMonitorConfig(
         sensitivity: state.sensitivity,
         interval: 1.0,
-        verbose: true,
       );
 
       _client = PostureMonitorClient(config: config);

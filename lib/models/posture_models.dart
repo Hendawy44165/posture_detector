@@ -95,7 +95,6 @@ class PostureMonitorConfig {
   final double interval;
   final int cameraIndex;
   final double sensitivity;
-  final bool verbose;
   final String pythonExecutable;
   final String cliScriptPath;
 
@@ -103,7 +102,6 @@ class PostureMonitorConfig {
     this.interval = 1.0,
     this.cameraIndex = 0,
     this.sensitivity = 0.4,
-    this.verbose = false,
     this.pythonExecutable = 'scripts/venv/bin/python',
     this.cliScriptPath = 'scripts/cli.py',
   });
@@ -116,6 +114,5 @@ class PostureMonitorConfig {
     cameraIndex.toString(),
     '--sensitivity',
     sensitivity.toString(),
-    if (verbose) '--verbose',
   ];
 }
