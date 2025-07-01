@@ -62,16 +62,6 @@ class _PostureMonitorScreenState extends ConsumerState<PostureMonitorScreen>
 
     if (monitorState.errorMessage != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(monitorState.errorMessage!),
-            backgroundColor: const Color(0xFFEF4444),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-          ),
-        );
         monitorNotifier.clearErrorState();
       });
     }

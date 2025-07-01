@@ -1,8 +1,8 @@
 import 'package:posture_detector/models/posture_models.dart';
 import 'package:posture_detector/services/background_process_service.dart';
 import 'package:posture_detector/components/enums/posture_state.dart';
-import 'package:flutter/material.dart';
 import 'package:posture_detector/services/notification_service.dart';
+import 'package:posture_detector/components/enums/error_messages.dart';
 import 'package:riverpod/riverpod.dart';
 import 'dart:async';
 import 'package:window_manager/window_manager.dart';
@@ -41,7 +41,6 @@ class PostureMonitorNotifier extends StateNotifier<PostureMonitorState> {
   PostureMonitorClient? _client;
   StreamSubscription<PostureResult>? _postureSubscription;
   StreamSubscription<PostureError>? _errorSubscription;
-  StreamSubscription<PostureStatus>? _statusSubscription;
 
   Future<void> startMonitoring() async {
     if (state.isMonitoring) return;
@@ -65,11 +64,6 @@ class PostureMonitorNotifier extends StateNotifier<PostureMonitorState> {
         onError: _handleStreamError,
       );
 
-      _statusSubscription = _client!.statusStream.listen(
-        _handleStatusUpdate,
-        onError: _handleStreamError,
-      );
-
       await _client!.start();
       state = state.copyWith(isMonitoring: true, errorMessage: null);
     } catch (e) {
@@ -78,14 +72,12 @@ class PostureMonitorNotifier extends StateNotifier<PostureMonitorState> {
         isMonitoring: false,
         errorMessage: 'Failed to start monitoring: $e',
       );
-      debugPrint('Monitoring error: $e');
     }
   }
 
   Future<void> stopMonitoring() async {
     await _postureSubscription?.cancel();
     await _errorSubscription?.cancel();
-    await _statusSubscription?.cancel();
     await _client?.stop();
 
     state = state.copyWith(
@@ -128,34 +120,29 @@ class PostureMonitorNotifier extends StateNotifier<PostureMonitorState> {
   void _handlePostureError(PostureError error) {
     if (state.postureState == PostureState.notResolved) return;
 
-    NotificationService().show('Posture DETECTION error', error.message);
+    final userMessage = error.message.userFriendly;
+    NotificationService().show('Posture Detector', userMessage);
     state = state.copyWith(
       postureState: PostureState.notResolved,
-      errorMessage: 'Detection error: ${error.message}',
+      errorMessage: 'Detection error: $userMessage',
     );
-  }
-
-  void _handleStatusUpdate(PostureStatus status) {
-    debugPrint('Status: ${status.message}');
   }
 
   void _handleStreamError(dynamic error) {
     if (state.postureState == PostureState.notResolved) return;
 
-    NotificationService().show('Posture STREAM error', error.toString());
+    final userMessage = error.toString().userFriendly;
+    NotificationService().show('Posture Detector', userMessage);
     state = state.copyWith(
       postureState: PostureState.notResolved,
-      errorMessage: 'Stream error: $error',
+      errorMessage: 'Stream error: $userMessage',
     );
   }
-
-  void resumeDueToWindow() {}
 
   @override
   void dispose() {
     _postureSubscription?.cancel();
     _errorSubscription?.cancel();
-    _statusSubscription?.cancel();
     _client?.dispose();
     super.dispose();
   }

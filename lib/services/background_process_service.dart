@@ -3,8 +3,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:posture_detector/models/posture_models.dart';
 
-//TODO: make the error message more verbose, and handle them
-
 class PostureMonitorClient {
   final PostureMonitorConfig config;
   Process? _process;
@@ -13,7 +11,6 @@ class PostureMonitorClient {
 
   final _postureController = StreamController<PostureResult>.broadcast();
   final _errorController = StreamController<PostureError>.broadcast();
-  final _statusController = StreamController<PostureStatus>.broadcast();
   final _logController = StreamController<String>.broadcast();
 
   PostureMonitorClient({required this.config});
@@ -21,8 +18,6 @@ class PostureMonitorClient {
   Stream<PostureResult> get postureStream => _postureController.stream;
 
   Stream<PostureError> get errorStream => _errorController.stream;
-
-  Stream<PostureStatus> get statusStream => _statusController.stream;
 
   Stream<String> get logStream => _logController.stream;
 
@@ -110,10 +105,7 @@ class PostureMonitorClient {
           final error = PostureError.fromJson(json);
           _errorController.add(error);
           break;
-        case 'status':
-          final status = PostureStatus.fromJson(json);
-          _statusController.add(status);
-          break;
+
         default:
           break;
       }
@@ -193,7 +185,6 @@ class PostureMonitorClient {
     await stop();
     await _postureController.close();
     await _errorController.close();
-    await _statusController.close();
     await _logController.close();
   }
 }

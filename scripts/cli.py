@@ -54,7 +54,7 @@ import time
 import signal
 import argparse
 import logging
-from typing import Optional, Dict, Any
+from typing import Dict, Any
 from contextlib import contextmanager
 
 from camera_monitor import CameraMonitor
@@ -127,13 +127,13 @@ class PostureStreamCLI:
                     break
                 except Exception as e:
                     # Catch all errors from camera_monitor or posture_detector
-                    self._output_error(f"Posture detection error: {e}", code=101)
+                    self._output_error(f"Posture detection error: {e}", code=3)
                     self.logger.error(f"Posture detection error: {e}")
                     time.sleep(self.monitor.interval)
             return 0
 
         except RuntimeError as e:
-            self._output_error(f"Camera error: {str(e)}", code=10)
+            self._output_error(f"Camera hardware error: {str(e)}", code=10)
             return 1
         except Exception as e:
             self._output_error(f"Unexpected error: {str(e)}", code=99)
