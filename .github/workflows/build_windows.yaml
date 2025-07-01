@@ -1,8 +1,7 @@
 name: Build Flutter Windows App
 
 on:
-  workflow_dispatch:  # Allows manual trigger in GitHub UI
-
+  workflow_dispatch:
 jobs:
   build:
     runs-on: windows-latest
@@ -24,8 +23,12 @@ jobs:
       - name: Build Windows release
         run: flutter build windows --release
 
+      - name: Show output files
+        run: dir build\\windows\\runner\\Release\\
+
+
       - name: Upload executable artifact
         uses: actions/upload-artifact@v4
         with:
           name: windows-build
-          path: build/windows/runner/Release/
+          path: build\\windows\\runner\\Release\\
