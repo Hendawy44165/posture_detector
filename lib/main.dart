@@ -5,7 +5,6 @@ import 'package:window_manager/window_manager.dart';
 
 import 'providers/posture_monitor_provider.dart';
 import 'components/theme/app_theme.dart';
-import 'components/widgets/window_controls.dart';
 import 'components/widgets/header.dart';
 import 'components/widgets/status_card.dart';
 import 'components/widgets/sensitivity_card.dart';
@@ -18,16 +17,13 @@ Future<void> main() async {
   const windowOptions = WindowOptions(
     center: true,
     backgroundColor: Colors.transparent,
-    skipTaskbar: false,
-    titleBarStyle: TitleBarStyle.hidden,
-    windowButtonVisibility: false,
-    fullScreen: true,
     minimumSize: Size(600, 400),
   );
 
   windowManager.waitUntilReadyToShow(windowOptions, () async {
     await windowManager.show();
     await windowManager.focus();
+    await windowManager.maximize();
   });
 
   runApp(const ProviderScope(child: PostureMonitorApp()));
@@ -88,7 +84,7 @@ class _PostureMonitorScreenState extends ConsumerState<PostureMonitorScreen>
       body: SafeArea(
         child: Column(
           children: [
-            const WindowControls(),
+            // const WindowControls(),
             Expanded(
               child: LayoutBuilder(
                 builder: (context, constraints) {
