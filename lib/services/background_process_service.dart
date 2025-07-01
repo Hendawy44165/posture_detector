@@ -34,15 +34,11 @@ class PostureMonitorClient {
     }
 
     try {
-      print('Starting posture monitor with config: ${config.arguments}');
-
       _process = await Process.start(
         config.pythonExecutable,
         config.arguments,
         mode: ProcessStartMode.normal,
       );
-
-      print('Posture monitor process started with PID: ${_process!.pid}');
 
       _stdoutSubscription = _process!.stdout
           .transform(utf8.decoder)
@@ -64,7 +60,6 @@ class PostureMonitorClient {
 
       _process!.exitCode.then(_handleProcessExit);
     } catch (e) {
-      print('Failed to start posture monitor: $e');
       await _cleanup();
       rethrow;
     }
@@ -75,21 +70,25 @@ class PostureMonitorClient {
       return;
     }
 
-    print('Stopping posture monitor...');
-
     try {
       _process!.kill(ProcessSignal.sigterm);
 
       await _process!.exitCode.timeout(
         const Duration(seconds: 5),
         onTimeout: () {
-          print('Process did not exit gracefully, sending SIGKILL');
           _process!.kill(ProcessSignal.sigkill);
           return -1;
         },
       );
     } catch (e) {
-      print('Error stopping process: $e');
+      _errorController.add(
+        PostureError(
+          timestamp: DateTime.now(),
+          code: 500,
+          type: 'unknown',
+          message: 'Error stopping process: $e',
+        ),
+      );
     } finally {
       await _cleanup();
     }
@@ -116,11 +115,18 @@ class PostureMonitorClient {
           _statusController.add(status);
           break;
         default:
-          print('Unknown message type: $type');
+          break;
       }
     } catch (e) {
-      print('Failed to parse JSON from stdout: $line');
-      print('Parse error: $e');
+      _errorController.add(
+        PostureError(
+          timestamp: DateTime.now(),
+          code: 500,
+          type: 'unknown',
+
+          message: e.toString(),
+        ),
+      );
     }
   }
 
@@ -131,19 +137,47 @@ class PostureMonitorClient {
   }
 
   void _handleStreamError(Object error) {
-    print('Stream error: $error');
+    _errorController.add(
+      PostureError(
+        timestamp: DateTime.now(),
+        code: 500,
+        type: 'unknown',
+        message: error.toString(),
+      ),
+    );
   }
 
   void _handleStdoutDone() {
-    print('Stdout stream closed');
+    _errorController.add(
+      PostureError(
+        timestamp: DateTime.now(),
+        code: 500,
+        type: 'unknown',
+        message: 'Stdout stream closed',
+      ),
+    );
   }
 
   void _handleStderrDone() {
-    print('Stderr stream closed');
+    _errorController.add(
+      PostureError(
+        timestamp: DateTime.now(),
+        code: 500,
+        type: 'unknown',
+        message: 'Stderr stream closed',
+      ),
+    );
   }
 
   void _handleProcessExit(int exitCode) {
-    print('Posture monitor process exited with code: $exitCode');
+    _errorController.add(
+      PostureError(
+        timestamp: DateTime.now(),
+        code: 500,
+        type: 'unknown',
+        message: 'Posture monitor process exited with code: $exitCode',
+      ),
+    );
     _cleanup();
   }
 

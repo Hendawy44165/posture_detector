@@ -6,66 +6,52 @@ class StatusCard extends StatelessWidget {
     super.key,
     required this.postureState,
     required this.isMonitoring,
-    required this.pulseAnimation,
     this.isWideScreen = true,
   });
 
   final PostureState postureState;
   final bool isMonitoring;
-  final Animation<double> pulseAnimation;
   final bool isWideScreen;
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: pulseAnimation,
-      builder: (context, child) {
-        return Transform.scale(
-          scale: postureState == PostureState.notResolved && isMonitoring
-              ? pulseAnimation.value
-              : 1.0,
-          child: Card(
-            child: Container(
-              width: double.infinity,
-              padding: EdgeInsets.all(isWideScreen ? 32 : 24),
-              child: Column(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: postureState.color.withValues(alpha: 0.1),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: postureState.color, width: 3),
-                    ),
-                    child: Icon(
-                      postureState.icon,
-                      size: isWideScreen ? 64 : 48,
-                      color: postureState.color,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    postureState.label,
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: postureState.color,
-                    ),
-                  ),
-                  if (isMonitoring) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      'Monitoring active',
-                      style: Theme.of(
-                        context,
-                      ).textTheme.bodyMedium?.copyWith(color: Colors.white60),
-                    ),
-                  ],
-                ],
+    return Card(
+      child: Container(
+        width: double.infinity,
+        padding: EdgeInsets.all(isWideScreen ? 32 : 24),
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: isMonitoring
+                    ? postureState.color.withValues(alpha: 0.1)
+                    : Theme.of(context).disabledColor.withValues(alpha: 0.1),
+              ),
+              child: Icon(
+                isMonitoring
+                    ? postureState.icon
+                    : Icons.power_settings_new_rounded,
+                size: isWideScreen ? 48 : 36,
+                color: isMonitoring
+                    ? postureState.color
+                    : Theme.of(context).disabledColor,
               ),
             ),
-          ),
-        );
-      },
+            const SizedBox(height: 16),
+            Text(
+              isMonitoring ? postureState.label : 'Off',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: isMonitoring
+                    ? postureState.color
+                    : Theme.of(context).disabledColor,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

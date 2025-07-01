@@ -21,7 +21,7 @@ extension PostureStateExtension on PostureState {
       case PostureState.leaning:
         return 'Poor Posture';
       case PostureState.notResolved:
-        return 'Detecting...';
+        return 'Detecting';
     }
   }
 

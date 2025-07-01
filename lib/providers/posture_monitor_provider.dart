@@ -36,11 +36,7 @@ class PostureMonitorState {
 }
 
 class PostureMonitorNotifier extends StateNotifier<PostureMonitorState> {
-  PostureMonitorNotifier({required this.pulseController})
-    : super(PostureMonitorState());
-
-  final AnimationController pulseController;
-  bool _windowPaused = false;
+  PostureMonitorNotifier() : super(PostureMonitorState());
 
   PostureMonitorClient? _client;
   StreamSubscription<PostureResult>? _postureSubscription;
@@ -76,7 +72,6 @@ class PostureMonitorNotifier extends StateNotifier<PostureMonitorState> {
 
       await _client!.start();
       state = state.copyWith(isMonitoring: true, errorMessage: null);
-      _resumeAnimation();
     } catch (e) {
       state = state.copyWith(
         postureState: PostureState.notResolved,
@@ -98,7 +93,6 @@ class PostureMonitorNotifier extends StateNotifier<PostureMonitorState> {
       postureState: PostureState.notResolved,
       errorMessage: null,
     );
-    _pauseAnimation();
   }
 
   void updateSensitivity(double value) {
@@ -129,14 +123,11 @@ class PostureMonitorNotifier extends StateNotifier<PostureMonitorState> {
     if (state.postureState == newPostureState) return;
 
     state = state.copyWith(postureState: newPostureState, errorMessage: null);
-
-    _resumeAnimation();
   }
 
   void _handlePostureError(PostureError error) {
     if (state.postureState == PostureState.notResolved) return;
 
-    _resumeAnimation();
     NotificationService().show('Posture DETECTION error', error.message);
     state = state.copyWith(
       postureState: PostureState.notResolved,
@@ -151,7 +142,6 @@ class PostureMonitorNotifier extends StateNotifier<PostureMonitorState> {
   void _handleStreamError(dynamic error) {
     if (state.postureState == PostureState.notResolved) return;
 
-    _resumeAnimation();
     NotificationService().show('Posture STREAM error', error.toString());
     state = state.copyWith(
       postureState: PostureState.notResolved,
@@ -159,34 +149,7 @@ class PostureMonitorNotifier extends StateNotifier<PostureMonitorState> {
     );
   }
 
-  void _resumeAnimation() {
-    if (pulseController.isAnimating || _windowPaused) {
-      return;
-    }
-
-    pulseController.animateTo(0.5);
-    pulseController.repeat(reverse: true);
-  }
-
-  void _pauseAnimation() {
-    if (!pulseController.isAnimating) {
-      return;
-    }
-
-    pulseController.stop();
-  }
-
-  void pauseDueToWindow() {
-    _windowPaused = true;
-    _pauseAnimation();
-  }
-
-  void resumeDueToWindow() {
-    _windowPaused = false;
-    if (state.postureState == PostureState.notResolved) {
-      _resumeAnimation();
-    }
-  }
+  void resumeDueToWindow() {}
 
   @override
   void dispose() {
@@ -199,7 +162,7 @@ class PostureMonitorNotifier extends StateNotifier<PostureMonitorState> {
 }
 
 StateNotifierProvider<PostureMonitorNotifier, PostureMonitorState>
-getPostureMonitorProvider(AnimationController pulseController) =>
+getPostureMonitorProvider() =>
     StateNotifierProvider<PostureMonitorNotifier, PostureMonitorState>(
-      (ref) => PostureMonitorNotifier(pulseController: pulseController),
+      (ref) => PostureMonitorNotifier(),
     );

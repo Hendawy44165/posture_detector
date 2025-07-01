@@ -51,10 +51,7 @@ class PostureMonitorScreen extends ConsumerStatefulWidget {
 }
 
 class _PostureMonitorScreenState extends ConsumerState<PostureMonitorScreen>
-    with SingleTickerProviderStateMixin, WindowListener {
-  late AnimationController _pulseController;
-  late Animation<double> _pulseAnimation;
-
+    with WindowListener {
   late StateNotifierProvider<PostureMonitorNotifier, PostureMonitorState>
   postureMonitorProvider;
   late PostureMonitorNotifier monitorNotifier;
@@ -102,7 +99,6 @@ class _PostureMonitorScreenState extends ConsumerState<PostureMonitorScreen>
                             StatusCard(
                               postureState: monitorState.postureState,
                               isMonitoring: monitorState.isMonitoring,
-                              pulseAnimation: _pulseAnimation,
                               isWideScreen: isWideScreen,
                             ),
                             SizedBox(height: isWideScreen ? 32 : 24),
@@ -135,41 +131,9 @@ class _PostureMonitorScreenState extends ConsumerState<PostureMonitorScreen>
   }
 
   @override
-  void onWindowMinimize() {
-    monitorNotifier.pauseDueToWindow();
-  }
-
-  @override
-  void onWindowRestore() {
-    monitorNotifier.resumeDueToWindow();
-  }
-
-  @override
-  void onWindowBlur() {
-    monitorNotifier.pauseDueToWindow();
-  }
-
-  @override
-  void onWindowFocus() {
-    monitorNotifier.resumeDueToWindow();
-  }
-
-  void _initializeAnimations() {
-    _pulseController = AnimationController(
-      duration: const Duration(seconds: 2),
-      vsync: this,
-    );
-    _pulseAnimation = Tween<double>(begin: 0.8, end: 1.2).animate(
-      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
-    );
-    _pulseController.repeat(reverse: true);
-  }
-
-  @override
   void initState() {
     super.initState();
-    _initializeAnimations();
-    postureMonitorProvider = getPostureMonitorProvider(_pulseController);
+    postureMonitorProvider = getPostureMonitorProvider();
     monitorNotifier = ref.read(postureMonitorProvider.notifier);
     windowManager.addListener(this);
   }
