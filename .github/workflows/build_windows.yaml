@@ -1,34 +1,44 @@
-name: Build Flutter Windows App
+name: Build and Release
 
 on:
   workflow_dispatch:
+
 jobs:
   build:
     runs-on: windows-latest
-
+    
     steps:
-      - uses: actions/checkout@v3
+    - name: Checkout repository
+      uses: actions/checkout@v4
 
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.32.x'
+    - name: Setup Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: 'stable'
+        channel: 'stable'
 
-      - name: Enable Windows desktop support
-        run: flutter config --enable-windows-desktop
+    - name: Enable Windows desktop
+      run: flutter config --enable-windows-desktop
 
-      - name: Install dependencies
-        run: flutter pub get
+    - name: Get Flutter dependencies
+      run: flutter pub get
 
-      - name: Build Windows release
-        run: flutter build windows --release
+    - name: Build for Windows
+      run: flutter build windows --release
 
-      - name: Show output files
-        run: dir build\\windows\\runner\\Release\\
+    - name: Create release directory
+      run: mkdir -p releases/windows
 
+    - name: Copy Windows build
+      run: xcopy "build/windows/x64/runner/Release" "releases/windows" /E /I /Y
 
-      - name: Upload executable artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows-build
-          path: build\\windows\\runner\\Release\\
+    - name: Configure Git
+      run: |
+        git config --local user.email "amr.hendawy44165@gmail.com"
+        git config --local user.name "Hendawy44165"
+
+    - name: Commit and push release files
+      run: |
+        git add releases/
+        git commit -m "Windows release build"
+        git push
