@@ -24,31 +24,14 @@ jobs:
     - name: Enable Windows desktop
       run: flutter config --enable-windows-desktop
 
-    - name: Get Flutter dependencies
+    - name: Get dependencies
       run: flutter pub get
 
     - name: Build for Windows
       run: flutter build windows --release
 
-    - name: Create release directory
-      run: |
-        if (-not (Test-Path "releases")) {
-          New-Item -ItemType Directory -Path "releases"
-        }
-        if (-not (Test-Path "releases/windows")) {
-          New-Item -ItemType Directory -Path "releases/windows"
-        }
-
-    - name: Copy Windows build
-      run: Copy-Item "build/windows/x64/runner/Release/*" "releases/windows" -Recurse -Force
-
-    - name: Configure Git
-      run: |
-        git config --local user.email "amr.hendawy44165@gmail.com"
-        git config --local user.name "Hendawy44165"
-
-    - name: Commit and push release files
-      run: |
-        git add releases/
-        git commit -m "Windows release build"
-        git push
+    - name: Upload Windows build artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: windows-build
+        path: build/windows/x64/runner/Release/
