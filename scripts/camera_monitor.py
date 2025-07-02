@@ -9,7 +9,7 @@ Classes:
 
 Usage Example:
     from camera_monitor import CameraMonitor
-    monitor = CameraMonitor(interval=2.0)
+    monitor = CameraMonitor(interval=1.0)
     stream = monitor.subscribe()
     try:
         for is_leaning in stream:
@@ -20,7 +20,7 @@ Usage Example:
 
 import cv2
 import time
-from threading import Lock
+from threading import Lock, Thread, Event
 from posture_detector import PostureDetector
 
 
@@ -45,6 +45,9 @@ class CameraMonitor:
         self._subscribers = set()
         self._lock = Lock()
         self._active = False
+        self._grab_thread = None
+        self._grab_stop_event = Event()
+        self._cap = None
 
     def subscribe(self, subscriber_id=None):
         """
@@ -60,6 +63,14 @@ class CameraMonitor:
             sid = subscriber_id or id(self)
             self._subscribers.add(sid)
             self._active = True
+            if self._cap is None:
+                self._cap = cv2.VideoCapture(self.camera_index)
+                if not self._cap.isOpened():
+                    raise RuntimeError("Could not open camera.")
+            if self._grab_thread is None or not self._grab_thread.is_alive():
+                self._grab_stop_event.clear()
+                self._grab_thread = Thread(target=self._grabber, daemon=True)
+                self._grab_thread.start()
         return self._posture_stream(sid)
 
     def unsubscribe(self, subscriber_id=None):
@@ -76,6 +87,14 @@ class CameraMonitor:
                 self._subscribers.clear()
             if not self._subscribers:
                 self._active = False
+                # Stop the grabber thread and release camera
+                self._grab_stop_event.set()
+                if self._grab_thread is not None:
+                    self._grab_thread.join(timeout=1)
+                    self._grab_thread = None
+                if self._cap is not None:
+                    self._cap.release()
+                    self._cap = None
 
     def _posture_stream(self, sid):
         """
@@ -92,9 +111,9 @@ class CameraMonitor:
         """
         while True:
             with self._lock:
-                if sid not in self._subscribers:
+                if sid not in self._subscribers or self._cap is None:
                     break
-            cap = cv2.VideoCapture(self.camera_index)
+                cap = self._cap
             try:
                 if not cap.isOpened():
                     raise RuntimeError("Could not open camera.")
@@ -103,15 +122,21 @@ class CameraMonitor:
                     raise RuntimeError("Failed to capture image from camera.")
                 is_leaning = self.detector.is_leaning_forward(frame)
                 yield is_leaning
-            except RuntimeError as e:
+            except RuntimeError:
                 yield None
             finally:
-                cap.release()
-            time.sleep(self.interval)
+                time.sleep(self.interval)
+
+    def _grabber(self):
+        while not self._grab_stop_event.is_set():
+            with self._lock:
+                if self._cap is not None and self._cap.isOpened():
+                    self._cap.grab()
+            time.sleep(0.001)
 
 
 if __name__ == "__main__":
-    camera_monitor = CameraMonitor(interval=2.0, camera_index=0, sensitivity=0.4)
+    camera_monitor = CameraMonitor(interval=1.0, camera_index=0, sensitivity=0.4)
 
     try:
         for posture in camera_monitor.subscribe():

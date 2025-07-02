@@ -102,9 +102,8 @@ class PostureMonitorConfig {
     this.interval = 1.0,
     this.cameraIndex = 0,
     this.sensitivity = 0.4,
-    this.pythonExecutable =
-        '/usr/share/posture_detector/scripts/venv/bin/python',
-    this.cliScriptPath = '/usr/share/posture_detector/scripts/cli.py',
+    this.pythonExecutable = 'scripts/venv/bin/python',
+    this.cliScriptPath = 'scripts/cli.py',
   });
 
   List<String> get arguments => [
