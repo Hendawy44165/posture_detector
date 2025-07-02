@@ -116,6 +116,7 @@ class PostureMonitorNotifier extends StateNotifier<PostureMonitorState> {
   }
 
   void _handlePostureResult(PostureResult result) async {
+    _postureErrorCounter = 0;
     _sittingTooLongCounter++;
     if (_sittingTooLongCounter > 1800) {
       NotificationService().show(
