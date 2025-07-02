@@ -6,6 +6,8 @@ import 'package:posture_detector/components/enums/error_messages.dart';
 import 'package:riverpod/riverpod.dart';
 import 'dart:async';
 import 'package:window_manager/window_manager.dart';
+import 'package:flutter/services.dart';
+import '../services/sound_pref_service.dart';
 
 class PostureMonitorState {
   final PostureState postureState;
@@ -37,11 +39,28 @@ class PostureMonitorState {
 
 class PostureMonitorNotifier extends StateNotifier<PostureMonitorState> {
   int _leaningCounter = 0;
-  PostureMonitorNotifier() : super(PostureMonitorState());
+  SoundPrefService? _soundPrefService;
+  bool _soundEnabled = true;
 
+  PostureMonitorNotifier() : super(PostureMonitorState()) {
+    _initSoundPref();
+  }
+
+  Future<void> _initSoundPref() async {
+    _soundPrefService = await SoundPrefService.getInstance();
+    _soundEnabled = _soundPrefService?.soundEnabled ?? true;
+    state = state.copyWith();
+  }
+
+  bool get soundEnabled => _soundEnabled;
   PostureMonitorClient? _client;
   StreamSubscription<PostureResult>? _postureSubscription;
   StreamSubscription<PostureError>? _errorSubscription;
+
+  void toggleSound(bool value) {
+    _soundEnabled = value;
+    _soundPrefService?.setSoundEnabled(value);
+  }
 
   Future<void> startMonitoring() async {
     if (state.isMonitoring) return;
@@ -112,6 +131,9 @@ class PostureMonitorNotifier extends StateNotifier<PostureMonitorState> {
         unawaited(windowManager.restore());
         unawaited(windowManager.setAlwaysOnTop(false));
         _leaningCounter = 0;
+        if (_soundEnabled) {
+          await SystemSound.play(SystemSoundType.alert);
+        }
       }
     } else {
       _leaningCounter = 0;
@@ -123,22 +145,28 @@ class PostureMonitorNotifier extends StateNotifier<PostureMonitorState> {
     state = state.copyWith(postureState: newPostureState, errorMessage: null);
   }
 
-  void _handlePostureError(PostureError error) {
+  void _handlePostureError(PostureError error) async {
     if (state.postureState == PostureState.notResolved) return;
 
     final userMessage = error.message.userFriendly;
     NotificationService().show('Posture Detector', userMessage);
+    if (_soundEnabled) {
+      await SystemSound.play(SystemSoundType.alert);
+    }
     state = state.copyWith(
       postureState: PostureState.notResolved,
       errorMessage: 'Detection error: $userMessage',
     );
   }
 
-  void _handleStreamError(dynamic error) {
+  void _handleStreamError(dynamic error) async {
     if (state.postureState == PostureState.notResolved) return;
 
     final userMessage = error.toString().userFriendly;
     NotificationService().show('Posture Detector', userMessage);
+    if (_soundEnabled) {
+      await SystemSound.play(SystemSoundType.alert);
+    }
     state = state.copyWith(
       postureState: PostureState.notResolved,
       errorMessage: 'Stream error: $userMessage',

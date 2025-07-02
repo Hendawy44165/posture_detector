@@ -36,6 +36,7 @@ class PostureMonitorApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Posture Monitor',
+      debugShowCheckedModeBanner: false,
       theme: AppTheme.darkTheme,
       home: const PostureMonitorScreen(),
     );
@@ -68,6 +69,30 @@ class _PostureMonitorScreenState extends ConsumerState<PostureMonitorScreen>
 
     return Scaffold(
       backgroundColor: const Color(0xFF0F0F23),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        actions: [
+          IconButton(
+            icon: Icon(
+              monitorNotifier.soundEnabled
+                  ? Icons.notifications_active
+                  : Icons.notifications_off,
+              color: monitorNotifier.soundEnabled
+                  ? const Color(0xFFFFD700)
+                  : Colors.grey,
+            ),
+            tooltip: monitorNotifier.soundEnabled
+                ? 'Disable Sound Notifications'
+                : 'Enable Sound Notifications',
+            onPressed: () {
+              setState(() {
+                monitorNotifier.toggleSound(!monitorNotifier.soundEnabled);
+              });
+            },
+          ),
+        ],
+      ),
       body: SafeArea(
         child: Column(
           children: [
@@ -100,6 +125,7 @@ class _PostureMonitorScreenState extends ConsumerState<PostureMonitorScreen>
                               isWideScreen: isWideScreen,
                             ),
                             SizedBox(height: isWideScreen ? 32 : 24),
+
                             ControlButton(
                               isMonitoring: monitorState.isMonitoring,
                               onStartPressed: monitorNotifier.startMonitoring,
