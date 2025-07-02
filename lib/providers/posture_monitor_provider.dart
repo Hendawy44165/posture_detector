@@ -1,13 +1,14 @@
+import 'dart:async';
+
 import 'package:posture_detector/models/posture_models.dart';
 import 'package:posture_detector/services/background_process_service.dart';
 import 'package:posture_detector/components/enums/posture_state.dart';
 import 'package:posture_detector/services/notification_service.dart';
 import 'package:posture_detector/components/enums/error_messages.dart';
+import 'package:posture_detector/services/sound_pref_service.dart';
 import 'package:riverpod/riverpod.dart';
-import 'dart:async';
 import 'package:window_manager/window_manager.dart';
 import 'package:flutter/services.dart';
-import '../services/sound_pref_service.dart';
 
 class PostureMonitorState {
   final PostureState postureState;
@@ -39,17 +40,13 @@ class PostureMonitorState {
 
 class PostureMonitorNotifier extends StateNotifier<PostureMonitorState> {
   int _leaningCounter = 0;
+  int _postureErrorCounter = 0;
+  int _sittingTooLongCounter = 0;
   SoundPrefService? _soundPrefService;
   bool _soundEnabled = true;
 
   PostureMonitorNotifier() : super(PostureMonitorState()) {
     _initSoundPref();
-  }
-
-  Future<void> _initSoundPref() async {
-    _soundPrefService = await SoundPrefService.getInstance();
-    _soundEnabled = _soundPrefService?.soundEnabled ?? true;
-    state = state.copyWith();
   }
 
   bool get soundEnabled => _soundEnabled;
@@ -119,6 +116,21 @@ class PostureMonitorNotifier extends StateNotifier<PostureMonitorState> {
   }
 
   void _handlePostureResult(PostureResult result) async {
+    _sittingTooLongCounter++;
+    if (_sittingTooLongCounter > 1800) {
+      NotificationService().show(
+        'THE EGGS HATCHED !!',
+        'You have been sitting for too long',
+      );
+      unawaited(windowManager.setAlwaysOnTop(true));
+      unawaited(windowManager.focus());
+      unawaited(windowManager.restore());
+      unawaited(windowManager.setAlwaysOnTop(false));
+      if (_soundEnabled) {
+        await SystemSound.play(SystemSoundType.alert);
+      }
+      _sittingTooLongCounter = 0;
+    }
     final newPostureState = result.isLeaning
         ? PostureState.leaning
         : PostureState.upright;
@@ -146,8 +158,11 @@ class PostureMonitorNotifier extends StateNotifier<PostureMonitorState> {
   }
 
   void _handlePostureError(PostureError error) async {
+    _postureErrorCounter++;
+    if (_postureErrorCounter < 5) return;
     if (state.postureState == PostureState.notResolved) return;
 
+    _sittingTooLongCounter = 0;
     final userMessage = error.message.userFriendly;
     NotificationService().show('Posture Detector', userMessage);
     if (_soundEnabled) {
@@ -157,6 +172,7 @@ class PostureMonitorNotifier extends StateNotifier<PostureMonitorState> {
       postureState: PostureState.notResolved,
       errorMessage: 'Detection error: $userMessage',
     );
+    _postureErrorCounter = 0;
   }
 
   void _handleStreamError(dynamic error) async {
@@ -171,6 +187,12 @@ class PostureMonitorNotifier extends StateNotifier<PostureMonitorState> {
       postureState: PostureState.notResolved,
       errorMessage: 'Stream error: $userMessage',
     );
+  }
+
+  Future<void> _initSoundPref() async {
+    _soundPrefService = await SoundPrefService.getInstance();
+    _soundEnabled = _soundPrefService?.soundEnabled ?? true;
+    state = state.copyWith();
   }
 
   @override

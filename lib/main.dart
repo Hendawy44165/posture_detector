@@ -36,7 +36,6 @@ class PostureMonitorApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Posture Monitor',
-      debugShowCheckedModeBanner: false,
       theme: AppTheme.darkTheme,
       home: const PostureMonitorScreen(),
     );
