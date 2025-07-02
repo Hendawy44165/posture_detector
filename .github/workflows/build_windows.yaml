@@ -31,10 +31,16 @@ jobs:
       run: flutter build windows --release
 
     - name: Create release directory
-      run: mkdir -p releases/windows
+      run: |
+        if (-not (Test-Path "releases")) {
+          New-Item -ItemType Directory -Path "releases"
+        }
+        if (-not (Test-Path "releases/windows")) {
+          New-Item -ItemType Directory -Path "releases/windows"
+        }
 
     - name: Copy Windows build
-      run: xcopy "build/windows/x64/runner/Release" "releases/windows" /E /I /Y
+      run: Copy-Item "build/windows/x64/runner/Release/*" "releases/windows" -Recurse -Force
 
     - name: Configure Git
       run: |
