@@ -40,6 +40,7 @@ class PostureMonitorApp extends StatelessWidget {
       title: 'Posture Monitor',
       theme: AppTheme.darkTheme,
       home: const PostureMonitorScreen(),
+      debugShowCheckedModeBanner: false,
     );
   }
 }
