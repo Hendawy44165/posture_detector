@@ -1,7 +1,14 @@
 import 'package:flutter/material.dart';
 
-class SensitivityCard extends StatelessWidget {
-  const SensitivityCard({
+/// A slider widget for adjusting the posture detection sensitivity.
+class SensitivitySlider extends StatelessWidget {
+  /// Creates a [SensitivitySlider].
+  ///
+  /// Args:
+  ///   - sensitivity: [double] current sensitivity value.
+  ///   - onSensitivityChanged: [ValueChanged<double>] callback for changes.
+  ///   - isWideScreen: [bool] adjusts layout for wide screens.
+  const SensitivitySlider({
     super.key,
     required this.sensitivity,
     required this.onSensitivityChanged,

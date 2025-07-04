@@ -29,6 +29,8 @@ Future<void> main() async {
   runApp(const ProviderScope(child: PostureMonitorApp()));
 }
 
+/// The root widget for the Posture Monitor application.
+/// Sets up the MaterialApp with theme and home screen.
 class PostureMonitorApp extends StatelessWidget {
   const PostureMonitorApp({super.key});
 
@@ -42,6 +44,8 @@ class PostureMonitorApp extends StatelessWidget {
   }
 }
 
+/// Main screen widget for posture monitoring.
+/// Uses Riverpod for state management.
 class PostureMonitorScreen extends ConsumerStatefulWidget {
   const PostureMonitorScreen({super.key});
 
@@ -116,7 +120,7 @@ class _PostureMonitorScreenState extends ConsumerState<PostureMonitorScreen>
                               isWideScreen: isWideScreen,
                             ),
                             SizedBox(height: isWideScreen ? 32 : 24),
-                            SensitivityCard(
+                            SensitivitySlider(
                               sensitivity: monitorState.sensitivity,
                               onSensitivityChanged: (value) {
                                 monitorNotifier.updateSensitivity(value);

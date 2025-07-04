@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 enum PostureState { upright, leaning, notResolved }
 
+/// Extension adding convenience getters for [PostureState] (color, label, icon).
 extension PostureStateExtension on PostureState {
   Color get color {
     switch (this) {

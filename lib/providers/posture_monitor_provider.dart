@@ -10,6 +10,13 @@ import 'package:riverpod/riverpod.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:flutter/services.dart';
 
+/// Holds the state for posture monitoring.
+///
+/// Fields:
+///   - postureState: [PostureState] current posture.
+///   - isMonitoring: [bool] if monitoring is active.
+///   - sensitivity: [double] detection sensitivity.
+///   - errorMessage: [String?] error message if any.
 class PostureMonitorState {
   final PostureState postureState;
   final bool isMonitoring;
@@ -38,6 +45,8 @@ class PostureMonitorState {
   }
 }
 
+/// StateNotifier managing posture monitoring logic and state.
+/// Handles starting/stopping monitoring, sound preferences, and error handling.
 class PostureMonitorNotifier extends StateNotifier<PostureMonitorState> {
   int _leaningCounter = 0;
   int _postureErrorCounter = 0;

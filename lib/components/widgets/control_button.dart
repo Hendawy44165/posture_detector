@@ -1,6 +1,16 @@
 import 'package:flutter/material.dart';
 
+/// A button widget for starting or stopping posture monitoring.
+///
+/// Displays a play or stop icon and label depending on monitoring state.
 class ControlButton extends StatelessWidget {
+  /// Creates a [ControlButton].
+  ///
+  /// Args:
+  ///   - isMonitoring: [bool] whether monitoring is active.
+  ///   - onStartPressed: [VoidCallback] called when start is pressed.
+  ///   - onStopPressed: [VoidCallback] called when stop is pressed.
+  ///   - isWideScreen: [bool] adjusts layout for wide screens.
   const ControlButton({
     super.key,
     required this.isMonitoring,

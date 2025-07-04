@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:posture_detector/models/posture_models.dart';
 
+/// Client for managing the background posture detection process.
+/// Handles process lifecycle, communication, and result/error streaming.
 class PostureMonitorClient {
   final PostureMonitorConfig config;
   Process? _process;
@@ -23,6 +25,10 @@ class PostureMonitorClient {
 
   bool get isRunning => _process != null;
 
+  /// Starts the posture detection subprocess.
+  /// Throws [StateError] if already running.
+  ///
+  /// Returns: [Future<void>]
   Future<void> start() async {
     if (_process != null) {
       throw StateError('Posture monitor is already running');
@@ -60,6 +66,9 @@ class PostureMonitorClient {
     }
   }
 
+  /// Stops the posture detection subprocess if running.
+  ///
+  /// Returns: [Future<void>]
   Future<void> stop() async {
     if (_process == null) {
       return;

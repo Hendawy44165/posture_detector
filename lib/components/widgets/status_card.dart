@@ -1,7 +1,14 @@
 import 'package:flutter/material.dart';
 import '../enums/posture_state.dart' show PostureState, PostureStateExtension;
 
+/// A card widget displaying the current posture status and monitoring state.
 class StatusCard extends StatelessWidget {
+  /// Creates a [StatusCard].
+  ///
+  /// Args:
+  ///   - postureState: [PostureState] current detected posture.
+  ///   - isMonitoring: [bool] if monitoring is active.
+  ///   - isWideScreen: [bool] adjusts layout for wide screens.
   const StatusCard({
     super.key,
     required this.postureState,

@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 
+/// A widget displaying the app's title and subtitle with an icon.
 class Header extends StatelessWidget {
+  /// Creates a [Header] widget.
+  ///
+  /// Args:
+  ///   - isWideScreen: [bool] adjusts layout for wide screens.
   const Header({super.key, this.isWideScreen = true});
 
   final bool isWideScreen;

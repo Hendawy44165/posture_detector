@@ -1,3 +1,11 @@
+/// Represents a single posture detection result.
+///
+/// Fields:
+///   - timestamp: [DateTime] of detection.
+///   - isLeaning: [bool] whether user is leaning.
+///   - posture: [String] posture label.
+///   - type: [String] result type.
+///   - code: [int] result code.
 class PostureResult {
   final DateTime timestamp;
   final bool isLeaning;
@@ -31,6 +39,13 @@ class PostureResult {
   }
 }
 
+/// Represents an error event in posture detection.
+///
+/// Fields:
+///   - timestamp: [DateTime] of error.
+///   - message: [String] error message.
+///   - type: [String] error type.
+///   - code: [int] error code.
 class PostureError {
   final DateTime timestamp;
   final String message;
@@ -61,6 +76,13 @@ class PostureError {
   }
 }
 
+/// Represents a status message in posture monitoring.
+///
+/// Fields:
+///   - timestamp: [DateTime] of status.
+///   - message: [String] status message.
+///   - type: [String] status type.
+///   - code: [int] status code.
 class PostureStatus {
   final DateTime timestamp;
   final String message;
