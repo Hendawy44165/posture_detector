@@ -26,7 +26,7 @@ A cross-platform desktop application for real-time posture monitoring using your
 ### Steps
 1. Clone this repository:
    ```bash
-   git clone <repo-url>
+   git clone https://github.com/Hendawy44165/posture_detector.git
    cd posture_detector
    ```
 2. Install dependencies:
