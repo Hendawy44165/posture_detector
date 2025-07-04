@@ -42,10 +42,10 @@ Error Codes:
 
 Usage:
     python cli.py [--interval SECONDS] [--camera INDEX]
-                 [--sensitivity FLOAT] [--verbose]
+                 [--sensitivity FLOAT]
 
 Example:
-    python cli.py --interval 2.0 --sensitivity 0.4 --camera 1 --verbose
+    python cli.py --interval 2.0 --sensitivity 0.4 --camera
 """
 
 import sys
@@ -75,7 +75,7 @@ class PostureStreamCLI:
     4. Detailed Logging: Comprehensive logging for debugging
     """
 
-    def __init__(self, interval: float, camera_index: int, sensitivity: float, verbose: bool = False):
+    def __init__(self, interval: float, camera_index: int, sensitivity: float):
         """
         Initialize the streaming CLI with monitoring parameters.
 
@@ -83,7 +83,6 @@ class PostureStreamCLI:
             interval: Seconds between posture checks
             camera_index: Index of the camera device to use
             sensitivity: Posture detection sensitivity (0.0-1.0)
-            verbose: Enable debug logging to stderr
         """
         self.monitor = CameraMonitor(interval=interval, camera_index=camera_index, sensitivity=sensitivity)
         self.running = True
@@ -196,8 +195,7 @@ def parse_args() -> argparse.Namespace:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  %(prog)s --interval 2.0 --sensitivity 0.6
-  %(prog)s --camera 1 --verbose
+  %(prog)s --interval 2.0 --sensitivity 0.4 --camera 0
         """,
     )
     parser.add_argument(
