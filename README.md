@@ -8,8 +8,6 @@ A cross-platform desktop application for real-time posture monitoring using your
 - [Usage](#usage)
 - [Project Structure](#project-structure)
 - [Dependencies](#dependencies)
-- [Contributing](#contributing)
-- [License](#license)
 
 ## Features
 - Real-time posture detection (upright, leaning, unresolved)
