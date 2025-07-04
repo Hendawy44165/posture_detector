@@ -33,9 +33,22 @@ A cross-platform desktop application for real-time posture monitoring using your
    ```bash
    flutter pub get
    ```
-3. Run the app:
+3. Run the venv setup script (choose the command for your OS):
+   - **Linux:**
+     ```bash
+     cd scripts
+     ./venv_setup_linux.sh
+     cd ..
+     ```
+   - **Windows (Command Prompt):**
+     ```bat
+     cd scripts
+     venv_setup_windows.bat
+     cd ..
+     ```
+4. Run the app:
    ```bash
-   flutter run -d <windows | linux>
+   flutter run -d <windows | linux> --release
    ```
 
 ## Usage
@@ -71,7 +84,7 @@ posture_detector/
 │   │       └── status_card.dart      # Posture status display
 │   └── ...
 ├── assets/                          # App assets (images, icons, etc.)
-├── scripts/                         # Auxiliary scripts (if any)
+├── scripts/                         # Python background script process
 ├── pubspec.yaml                     # Flutter dependencies and metadata
 └── README.md                        # Project documentation
 ```
