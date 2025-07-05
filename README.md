@@ -6,6 +6,7 @@ A cross-platform desktop application for real-time posture monitoring using your
 - [Features](#features)
 - [Installation](#installation)
 - [Usage](#usage)
+- [App Screenshots](#app-screenshots)
 - [Project Structure](#project-structure)
 - [Dependencies](#dependencies)
 
@@ -54,6 +55,29 @@ A cross-platform desktop application for real-time posture monitoring using your
 - Click **Start Monitoring** to begin posture detection.
 - Adjust sensitivity using the slider.
 - Enable/disable sound notifications as needed.
+
+## App Screenshots
+
+Below are screenshots demonstrating the main states and workflow of the Posture Monitor app:
+
+| Off State | Detecting (No Person Detected) |
+|---|---|
+| ![Off State](assets/screenshots/screenshot5.png) | ![Detecting - No Person](assets/screenshots/screenshot4.png) |
+
+| Detecting | Poor Posture Detected |
+|---|---|
+| ![Detecting](assets/screenshots/screenshot3.png) | ![Poor Posture](assets/screenshots/screenshot1.png) |
+
+| Perfect Posture Detected |
+|---|
+| ![Perfect Posture](assets/screenshots/screenshot2.png) |
+
+Each screenshot represents a different state:
+- **Off State:** Monitoring is stopped.
+- **Detecting (No Person Detected):** No person is visible to the camera.
+- **Detecting:** The app is analyzing posture.
+- **Poor Posture Detected:** The app detected poor posture.
+- **Perfect Posture Detected:** The app detected perfect posture.
 
 ## Project Structure
 
